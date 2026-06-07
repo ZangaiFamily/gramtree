@@ -38,6 +38,21 @@ textarea {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  position: relative;
+}
+
+.githubCorner {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 20;
+  color: var(--ink);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.githubCorner:hover {
+  opacity: 1;
 }
 
 .inputPane {
