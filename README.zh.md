@@ -1,5 +1,7 @@
 # gramtree — 英语语法可视化
 
+![gramtree](./docs/images/headline-hero.png)
+
 输入英语句子，实时生成成分句法树 —— 主谓宾表定状补，一目了然。
 
 ## 为什么需要它
@@ -20,6 +22,8 @@ npm install
 npm run dev
 # 打开 http://localhost:3000
 ```
+
+![gramtree 概览](./docs/images/overview-hero.png)
 
 ## 示例
 

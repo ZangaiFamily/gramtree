@@ -1,8 +1,10 @@
-[**中文**](./README-zh.md) | English
+[**中文**](./README.zh.md) | English
 
 ---
 
 # gramtree
+
+![gramtree](./docs/images/headline-hero.png)
 
 Type an English sentence. See its grammar tree instantly — subject, verb, object, predicate, all laid out in a visual constituency parse.
 
@@ -24,6 +26,8 @@ npm install
 npm run dev
 # Open http://localhost:3000
 ```
+
+![gramtree overview](./docs/images/overview-hero.png)
 
 ## Examples
 
