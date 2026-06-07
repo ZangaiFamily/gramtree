@@ -1,0 +1,523 @@
+:root {
+  color-scheme: light;
+  --background: #f7f8f3;
+  --ink: #18221b;
+  --muted: #607067;
+  --panel: #ffffff;
+  --line: #d9ded2;
+  --accent: #2f6f9f;
+  --accent-strong: #1f527a;
+  --node: #ffffff;
+  --node-border: #b8c8d8;
+  --warm: #8b5e25;
+  --subject: #f0f7ff;
+  --predicate: #f4fbf1;
+  --graph-bg: #070b12;
+  --graph-panel: #0b1018;
+  --graph-border: #253144;
+  --graph-text: #e8edf6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.pageShell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+}
+
+.inputPane {
+  padding: 28px 24px;
+  background: #eef4f7;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 11ch;
+  margin-bottom: 12px;
+  font-size: 3rem;
+  line-height: 1.03;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 1.35rem;
+}
+
+.intro {
+  max-width: 36rem;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.sentenceLabel {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 1px solid #bdc9be;
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--panel);
+  color: var(--ink);
+  line-height: 1.45;
+  outline: none;
+  box-shadow: 0 8px 18px rgba(24, 34, 27, 0.05);
+}
+
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(31, 122, 104, 0.14);
+}
+
+.exampleRow {
+  display: grid;
+  gap: 10px;
+}
+
+.exampleRow button {
+  min-height: 40px;
+  border: 1px solid #cbd6cc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #26352c;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exampleRow button:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.diagramPane {
+  min-width: 0;
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagramHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.diagramHeader span {
+  flex: 0 0 auto;
+  border: 1px solid #cfd9d0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.structureBar {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.structureBar strong {
+  color: var(--ink);
+}
+
+.structureBar span {
+  border: 1px solid #d4dde5;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #ffffff;
+  color: #2b4d63;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.wordInspector {
+  border: 1px solid #dde4d7;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.wordInspectorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.wordInspectorHeader .eyebrow {
+  margin: 0;
+  color: #8c1d12;
+}
+
+.wordInspectorHeader span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.wordStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.componentGroup {
+  position: relative;
+  min-width: 110px;
+  border-radius: 8px;
+  padding-top: 34px;
+}
+
+.componentWords {
+  display: flex;
+  align-items: stretch;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.phoneticRow,
+.posRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+}
+
+.phoneticRow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  color: #687180;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.posRow {
+  margin-top: 7px;
+}
+
+.posRow span {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.componentLabel {
+  margin-top: 8px;
+  color: #3f4a5a;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.componentSubject .componentWords {
+  background: #ffe4aa;
+}
+
+.componentVerb .componentWords {
+  background: #ffc4cf;
+}
+
+.componentPredicate .componentWords {
+  background: #c9d9ff;
+}
+
+.componentComplement .componentWords {
+  background: #e3d4ff;
+}
+
+.componentPreposition .componentWords {
+  background: #bdeaf2;
+}
+
+.componentDefault .componentWords {
+  background: #eef1f5;
+}
+
+.wordChip {
+  position: relative;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 12px 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: help;
+}
+
+.wordChip:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.wordChip:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.wordChip:hover,
+.wordChip:focus-visible {
+  z-index: 5;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 111, 159, 0.16);
+}
+
+.wordText,
+.wordPos,
+.wordComponent {
+  display: block;
+}
+
+.wordText {
+  font-size: 2.1rem;
+  font-weight: 900;
+}
+
+.wordPos {
+  margin-top: 4px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.wordComponent {
+  margin-top: 2px;
+  color: #526174;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.toneDeterminer {
+  border-color: #cfb25a;
+  background: #fff4c7;
+}
+
+.toneNoun {
+  border-color: #5f7fc4;
+  background: #e9f0ff;
+}
+
+.toneVerb {
+  border-color: #c45f72;
+  background: #ffe7ec;
+}
+
+.tonePreposition {
+  border-color: #4aa7b5;
+  background: #dff7f9;
+}
+
+.toneModifier {
+  border-color: #7aa15c;
+  background: #eef8df;
+}
+
+.toneDefault {
+  border-color: #b7bec8;
+  background: #f4f6f8;
+}
+
+.componentWords .wordChip {
+  background: transparent;
+}
+
+.wordTooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: 280px;
+  display: none;
+  transform: translateX(-50%);
+  border: 1px solid #d6ddd2;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 16px 34px rgba(24, 34, 27, 0.16);
+}
+
+.wordTooltip strong,
+.wordTooltip span {
+  display: block;
+}
+
+.wordTooltip strong {
+  margin-bottom: 6px;
+  font-size: 1rem;
+}
+
+.wordTooltip span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.wordChip:hover .wordTooltip,
+.wordChip:focus-visible .wordTooltip {
+  display: block;
+}
+
+.constituencyShell {
+  flex: 1;
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 2px solid #8aa1ff;
+  border-radius: 2px;
+  padding: 18px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.constituencyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.constituencyHeader .eyebrow {
+  color: #8c1d12;
+}
+
+.constituencyHeader h2 {
+  color: #8c1d12;
+  font-size: 1.8rem;
+}
+
+.constituencyCanvas {
+  flex: 1;
+  min-height: 540px;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.constituencySvg {
+  display: block;
+  width: max(100%, 1120px);
+  height: auto;
+  min-height: 540px;
+}
+
+.constituencyEdge {
+  stroke: #989898;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.constituencyPhraseNode {
+  fill: #cfe9bd;
+  stroke: #6aa04d;
+  stroke-width: 3;
+}
+
+.constituencyWordNode {
+  fill: #fffdd2;
+  stroke: #d4d36b;
+  stroke-width: 3;
+}
+
+.constituencyText {
+  fill: #050505;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.constituencyRoleText {
+  fill: #39582d;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .pageShell {
+    grid-template-columns: 1fr;
+  }
+
+  .inputPane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 32px 20px;
+  }
+
+  h1 {
+    max-width: 12ch;
+    font-size: 2.8rem;
+  }
+
+  .diagramPane {
+    padding: 22px 14px;
+  }
+
+  .diagramHeader {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .constituencyShell {
+    min-height: 520px;
+    padding: 16px;
+  }
+
+  .constituencyCanvas,
+  .constituencySvg {
+    min-height: 420px;
+  }
+}
