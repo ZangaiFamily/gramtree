@@ -1,0 +1,2 @@
+:HL["/gramtree/_next/static/chunks/2afea82dc934adb0.css","style"]
+0:{"buildId":"8psNE4Xqel6amdcw0VUIw","tree":{"name":"","paramType":null,"paramKey":"","hasRuntimePrefetch":false,"slots":{"children":{"name":"__PAGE__","paramType":null,"paramKey":"__PAGE__","hasRuntimePrefetch":false,"slots":null,"isRootLayout":false}},"isRootLayout":true},"staleTime":300}
