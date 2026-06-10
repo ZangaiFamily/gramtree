@@ -19,6 +19,10 @@ Most grammar tools are either textbook diagrams or black-box NLP pipelines. You 
 - **Word-level inspection** — hover any word to see its POS tag, sentence component, and grammatical role
 - **Role-labeled nodes** — every phrase node carries its role (Subject, Verb, Predicate, Object, etc.)
 
+## Interaction Design Reference
+
+The sentence-building interaction and game-like practice flow are inspired by [句乐部](https://julebu.ai/), especially its sentence-first English learning experience, instant feedback, and keyboard-driven practice style.
+
 ## Quick Start
 
 ```bash

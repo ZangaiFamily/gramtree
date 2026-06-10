@@ -494,7 +494,7 @@ function TokenBuilder({
 }) {
   return (
     <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree sentence builder">
-      <div className="builderPrompt">按任意键，开始造这个句子</div>
+      <div className="builderPrompt">按鼠标任意键开始造这个句子</div>
       <div className="wordStrip homeWordStrip">
         {selectedTokens.map((token, index) => (
           <div
