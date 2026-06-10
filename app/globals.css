@@ -1229,7 +1229,7 @@ textarea:focus {
 }
 
 .homeWordText {
-  font-size: clamp(20px, 2.5vw, 35px);
+  font-size: clamp(30px, 3.75vw, 52.5px);
 }
 
 .homePartOfSpeechPill {
@@ -1565,7 +1565,7 @@ textarea:focus {
   }
 
   .homeWordText {
-    font-size: clamp(0.88rem, 5vw, 1.4rem);
+    font-size: clamp(1.32rem, 7.5vw, 2.1rem);
   }
 
   .homeSentenceTranslation {
