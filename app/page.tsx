@@ -19,6 +19,11 @@ type Stage = {
   tokenIndexes: number[];
 };
 
+type ClassicSentence = {
+  text: string;
+  chinese: string;
+};
+
 type PracticeStats = {
   startedAt: number;
   finishedAt: number | null;
@@ -33,36 +38,341 @@ type PracticeStats = {
   revealedByStage: boolean[];
 };
 
-const tokens: Token[] = [
-  {
-    word: "The",
-    phonetic: "/ðə/",
-    partOfSpeech: "限定词",
-    chinese: "（定冠词）",
-    fillTone: "tokenFillPhrase",
-    underlineTone: "tokenUnderlineDeterminer",
-  },
-  {
-    word: "gramtree",
-    phonetic: "/ˈgræm triː/",
-    partOfSpeech: "名词",
-    chinese: "语法树",
-    fillTone: "tokenFillPhrase",
-    underlineTone: "tokenUnderlineNoun",
-  },
+const sentenceLibrary: ClassicSentence[] = [
+  { text: "Knowledge is power", chinese: "知识就是力量。" },
+  { text: "Time is money", chinese: "时间就是金钱。" },
+  { text: "Practice makes perfect", chinese: "熟能生巧。" },
+  { text: "Honesty is the best policy", chinese: "诚实是最好的策略。" },
+  { text: "Actions speak louder than words", chinese: "行动胜于言语。" },
+  { text: "Better late than never", chinese: "迟做总比不做好。" },
+  { text: "Every cloud has a silver lining", chinese: "黑暗中总有一线希望。" },
+  { text: "No pain no gain", chinese: "没有付出就没有收获。" },
+  { text: "Fortune favors the brave", chinese: "幸运眷顾勇敢者。" },
+  { text: "The early bird catches the worm", chinese: "早起的鸟儿有虫吃。" },
+  { text: "Where there is a will there is a way", chinese: "有志者事竟成。" },
+  { text: "All roads lead to Rome", chinese: "条条大路通罗马。" },
+  { text: "Rome was not built in a day", chinese: "罗马不是一天建成的。" },
+  { text: "Look before you leap", chinese: "三思而后行。" },
+  { text: "Still waters run deep", chinese: "静水流深。" },
+  { text: "Birds of a feather flock together", chinese: "物以类聚，人以群分。" },
+  { text: "A friend in need is a friend indeed", chinese: "患难见真情。" },
+  { text: "The pen is mightier than the sword", chinese: "笔胜于剑。" },
+  { text: "Necessity is the mother of invention", chinese: "需求是发明之母。" },
+  { text: "Beauty is in the eye of the beholder", chinese: "美存在于观者眼中。" },
+  { text: "Hope springs eternal", chinese: "希望永存。" },
+  { text: "Less is more", chinese: "少即是多。" },
+  { text: "Love conquers all", chinese: "爱能征服一切。" },
+  { text: "Silence is golden", chinese: "沉默是金。" },
+  { text: "Seeing is believing", chinese: "眼见为实。" },
+  { text: "The truth will set you free", chinese: "真理会让你自由。" },
+  { text: "This too shall pass", chinese: "这一切也会过去。" },
+  { text: "To know oneself is true wisdom", chinese: "认识自己才是真智慧。" },
+  { text: "The journey matters more than the destination", chinese: "旅程比目的地更重要。" },
+  { text: "Small steps lead to great journeys", chinese: "小步能走向伟大的旅程。" },
+  { text: "Dreams begin with a single step", chinese: "梦想始于一步。" },
+  { text: "Courage grows by facing fear", chinese: "勇气在面对恐惧中成长。" },
+  { text: "Kind words cost nothing", chinese: "善言无需成本。" },
+  { text: "Patience is a quiet strength", chinese: "耐心是一种安静的力量。" },
+  { text: "Wisdom begins in wonder", chinese: "智慧始于好奇。" },
+  { text: "The best time is now", chinese: "最好的时间就是现在。" },
+  { text: "Light tomorrow with today", chinese: "用今天照亮明天。" },
+  { text: "Great minds think alike", chinese: "英雄所见略同。" },
+  { text: "Good things take time", chinese: "好事需要时间。" },
+  { text: "Life is a beautiful journey", chinese: "人生是一段美丽旅程。" },
+  { text: "Learn from yesterday", chinese: "从昨天学习。" },
+  { text: "Live for today", chinese: "为今天而活。" },
+  { text: "Hope for tomorrow", chinese: "为明天怀抱希望。" },
+  { text: "Make each day count", chinese: "让每一天都有意义。" },
+  { text: "Keep your eyes on the stars", chinese: "把目光投向星辰。" },
+  { text: "Stay hungry stay foolish", chinese: "保持渴望，保持天真。" },
+  { text: "Simplicity is the ultimate sophistication", chinese: "简洁是终极的精致。" },
+  { text: "Be yourself everyone else is taken", chinese: "做你自己，别人都已经有人做了。" },
+  { text: "Think different", chinese: "换个角度思考。" },
+  { text: "I love coding and vibing every morning", chinese: "我每天早上喜欢写代码，也享受当下的状态。" },
 ];
 
-const stages: Stage[] = [
-  { answer: "The", chinese: "（定冠词）", tokenIndexes: [0] },
-  { answer: "gramtree", chinese: "语法树", tokenIndexes: [1] },
-  { answer: "The gramtree", chinese: "语法树", tokenIndexes: [0, 1] },
-];
+const wordGlosses: Record<string, string> = {
+  a: "一个",
+  actions: "行动",
+  alike: "相似",
+  all: "全部",
+  and: "和",
+  beautiful: "美丽的",
+  beauty: "美",
+  be: "成为",
+  before: "在……之前",
+  begin: "开始",
+  begins: "开始",
+  beholder: "观看者",
+  believing: "相信",
+  best: "最好的",
+  better: "更好的",
+  bird: "鸟",
+  birds: "鸟儿",
+  brave: "勇敢者",
+  built: "建成",
+  by: "通过",
+  catches: "抓住",
+  cloud: "云",
+  coding: "写代码",
+  conquers: "征服",
+  cost: "花费",
+  courage: "勇气",
+  day: "一天",
+  deep: "深",
+  destination: "目的地",
+  different: "不同的",
+  dreams: "梦想",
+  each: "每个",
+  early: "早的",
+  else: "其他人",
+  eternal: "永恒的",
+  every: "每个",
+  everyone: "每个人",
+  eye: "眼睛",
+  eyes: "眼睛",
+  facing: "面对",
+  favors: "眷顾",
+  feather: "羽毛",
+  fear: "恐惧",
+  flock: "聚集",
+  foolish: "天真",
+  for: "为了",
+  fortune: "幸运",
+  free: "自由",
+  friend: "朋友",
+  gain: "收获",
+  golden: "金色的",
+  good: "好的",
+  great: "伟大的",
+  grows: "成长",
+  has: "有",
+  hope: "希望",
+  honesty: "诚实",
+  hungry: "渴望",
+  i: "我",
+  in: "在……中",
+  indeed: "真正地",
+  invention: "发明",
+  is: "是",
+  journey: "旅程",
+  journeys: "旅程",
+  keep: "保持",
+  kind: "善良的",
+  know: "认识",
+  knowledge: "知识",
+  late: "晚",
+  lead: "通向",
+  learn: "学习",
+  leap: "跳跃",
+  less: "更少",
+  life: "人生",
+  light: "照亮",
+  lining: "边缘",
+  live: "生活",
+  look: "看",
+  louder: "更响亮",
+  love: "爱",
+  makes: "造就",
+  matters: "重要",
+  minds: "头脑",
+  mightier: "更强大",
+  money: "金钱",
+  more: "更多",
+  morning: "早晨",
+  mother: "母亲",
+  necessity: "必要",
+  need: "需要",
+  never: "从不",
+  no: "没有",
+  not: "不",
+  nothing: "没有东西",
+  now: "现在",
+  of: "……的",
+  on: "在……上",
+  oneself: "自己",
+  pain: "痛苦",
+  pass: "过去",
+  patience: "耐心",
+  pen: "笔",
+  perfect: "完美",
+  policy: "策略",
+  power: "力量",
+  practice: "练习",
+  quiet: "安静的",
+  roads: "道路",
+  rome: "罗马",
+  run: "流动",
+  seeing: "看见",
+  set: "使",
+  shall: "将会",
+  silver: "银色的",
+  silence: "沉默",
+  simplicity: "简洁",
+  single: "单个的",
+  small: "小的",
+  speak: "说话",
+  springs: "涌出",
+  stars: "星辰",
+  stay: "保持",
+  steps: "脚步",
+  still: "静止的",
+  strength: "力量",
+  sword: "剑",
+  take: "需要",
+  taken: "被占用",
+  than: "比",
+  the: "这个",
+  there: "那里",
+  things: "事情",
+  think: "思考",
+  this: "这",
+  time: "时间",
+  to: "到",
+  today: "今天",
+  tomorrow: "明天",
+  too: "也",
+  true: "真正的",
+  truth: "真理",
+  ultimate: "终极的",
+  vibing: "享受状态",
+  was: "曾经是",
+  waters: "水",
+  way: "方法",
+  where: "哪里",
+  will: "意志",
+  wisdom: "智慧",
+  with: "和",
+  wonder: "好奇",
+  words: "话语",
+  worm: "虫子",
+  yesterday: "昨天",
+  you: "你",
+  your: "你的",
+};
+
+const wordPhonetics: Record<string, string> = {
+  a: "/ə/",
+  and: "/ænd/",
+  be: "/biː/",
+  every: "/ˈevri/",
+  i: "/aɪ/",
+  is: "/ɪz/",
+  love: "/lʌv/",
+  morning: "/ˈmɔːrnɪŋ/",
+  the: "/ðə/",
+  to: "/tuː/",
+  you: "/juː/",
+};
+
+function sentenceWords(sentence: string) {
+  return sentence.match(/[A-Za-z']+/g) ?? [];
+}
+
+function inferTokenMeta(word: string): Omit<Token, "word"> {
+  const lower = word.toLowerCase();
+  const pronouns = new Set(["i", "you", "your", "this"]);
+  const determiners = new Set(["a", "the", "all", "every", "each", "no"]);
+  const conjunctions = new Set(["and", "than"]);
+  const prepositions = new Set(["in", "of", "on", "to", "with", "for", "by", "before"]);
+  const verbs = new Set([
+    "be", "begin", "begins", "believing", "built", "catches", "coding", "conquers", "cost",
+    "facing", "favors", "flock", "grows", "has", "is", "keep", "know", "lead", "learn",
+    "leap", "light", "live", "look", "love", "makes", "matters", "pass", "practice", "run",
+    "seeing", "set", "shall", "speak", "springs", "stay", "take", "think", "vibing", "was", "will",
+  ]);
+  const adjectives = new Set([
+    "beautiful", "best", "better", "brave", "different", "early", "eternal", "foolish",
+    "golden", "good", "great", "hungry", "kind", "late", "less", "louder", "mightier",
+    "more", "perfect", "quiet", "silver", "single", "small", "still", "true", "ultimate",
+  ]);
+
+  if (pronouns.has(lower)) {
+    return {
+      phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+      partOfSpeech: "代词",
+      chinese: wordGlosses[lower] ?? "代词",
+      fillTone: "tokenFillPronoun",
+      underlineTone: "tokenUnderlinePronoun",
+    };
+  }
+
+  if (determiners.has(lower)) {
+    return {
+      phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+      partOfSpeech: "限定词",
+      chinese: wordGlosses[lower] ?? "限定词",
+      fillTone: "tokenFillDefault",
+      underlineTone: "tokenUnderlineDeterminer",
+    };
+  }
+
+  if (conjunctions.has(lower) || prepositions.has(lower)) {
+    return {
+      phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+      partOfSpeech: conjunctions.has(lower) ? "连词" : "介词",
+      chinese: wordGlosses[lower] ?? "连接",
+      fillTone: "tokenFillDefault",
+      underlineTone: "tokenUnderlineParticle",
+    };
+  }
+
+  if (verbs.has(lower)) {
+    return {
+      phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+      partOfSpeech: lower.endsWith("ing") ? "动名词" : "动词",
+      chinese: wordGlosses[lower] ?? "动作",
+      fillTone: lower === "love" ? "tokenFillLike" : "tokenFillPhrase",
+      underlineTone: "tokenUnderlineVerb",
+    };
+  }
+
+  if (adjectives.has(lower)) {
+    return {
+      phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+      partOfSpeech: "形容词",
+      chinese: wordGlosses[lower] ?? "形容",
+      fillTone: "tokenFillPhrase",
+      underlineTone: "tokenUnderlineModifier",
+    };
+  }
+
+  return {
+    phonetic: wordPhonetics[lower] ?? `/${lower}/`,
+    partOfSpeech: "名词",
+    chinese: wordGlosses[lower] ?? "词",
+    fillTone: "tokenFillTime",
+    underlineTone: "tokenUnderlineNoun",
+  };
+}
+
+function createTokens(sentence: string): Token[] {
+  return sentenceWords(sentence).map((word) => ({
+    word,
+    ...inferTokenMeta(word),
+  }));
+}
+
+function createStages(tokens: Token[], sentence: ClassicSentence): Stage[] {
+  return [
+    ...tokens.map((token, index) => ({
+      answer: token.word,
+      chinese: token.chinese,
+      tokenIndexes: [index],
+    })),
+    {
+      answer: sentence.text,
+      chinese: sentence.chinese,
+      tokenIndexes: tokens.map((_, index) => index),
+    },
+  ];
+}
 
 function normalizeInput(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function createPracticeStats(): PracticeStats {
+function createPracticeStats(stageCount: number): PracticeStats {
   return {
     startedAt: Date.now(),
     finishedAt: null,
@@ -73,8 +383,8 @@ function createPracticeStats(): PracticeStats {
     mistakes: 0,
     currentStreak: 0,
     maxStreak: 0,
-    attemptsByStage: Array.from({ length: stages.length }, () => 0),
-    revealedByStage: Array.from({ length: stages.length }, () => false),
+    attemptsByStage: Array.from({ length: stageCount }, () => 0),
+    revealedByStage: Array.from({ length: stageCount }, () => false),
   };
 }
 
@@ -173,23 +483,23 @@ function playSuccessChime() {
 
 function TokenBuilder({
   className = "",
-  selectedTokens = tokens,
-  translation = "语法树",
+  selectedTokens,
+  translation,
   enableWordSpeech = true,
 }: {
   className?: string;
-  selectedTokens?: Token[];
-  translation?: string;
+  selectedTokens: Token[];
+  translation: string;
   enableWordSpeech?: boolean;
 }) {
   return (
     <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree sentence builder">
       <div className="builderPrompt">按任意键，开始造这个句子</div>
       <div className="wordStrip homeWordStrip">
-        {selectedTokens.map((token) => (
+        {selectedTokens.map((token, index) => (
           <div
             className="builderToken homeBuilderToken"
-            key={token.word}
+            key={`${token.word}-${index}`}
             onClick={enableWordSpeech ? () => speakWord(token.word) : undefined}
           >
             <span className="phoneticBadge homePhoneticBadge">{token.phonetic}</span>
@@ -212,29 +522,49 @@ function TokenBuilder({
 }
 
 export default function Home() {
+  const [selectedSentence, setSelectedSentence] = useState<ClassicSentence>(sentenceLibrary[0]);
   const [isPractice, setIsPractice] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [wordInputs, setWordInputs] = useState<string[]>([]);
   const [activeInputIndex, setActiveInputIndex] = useState(0);
   const [status, setStatus] = useState<"typing" | "success" | "error">("typing");
   const [score, setScore] = useState(0);
-  const [stats, setStats] = useState<PracticeStats>(() => createPracticeStats());
+  const [stats, setStats] = useState<PracticeStats>(() => createPracticeStats(sentenceWords(sentenceLibrary[0].text).length + 1));
   const [showResultModal, setShowResultModal] = useState(false);
   const [perfectStreak, setPerfectStreak] = useState<number | null>(null);
 
+  const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
+  const stages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
   const stage = stages[stageIndex];
   const stageWords = useMemo(() => stage.answer.split(" "), [stage.answer]);
   const submittedAnswer = wordInputs.join(" ");
   const revealedTokens = useMemo(
     () => stage.tokenIndexes.map((index) => tokens[index]),
-    [stage.tokenIndexes],
+    [stage.tokenIndexes, tokens],
   );
+
+  useEffect(() => {
+    const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
+    setSelectedSentence(nextSentence);
+  }, []);
+
+  useEffect(() => {
+    setIsPractice(false);
+    setStageIndex(0);
+    setWordInputs([]);
+    setActiveInputIndex(0);
+    setStatus("typing");
+    setScore(0);
+    setStats(createPracticeStats(stages.length));
+    setShowResultModal(false);
+    setPerfectStreak(null);
+  }, [stages.length, selectedSentence.text]);
 
   function startPractice() {
     if (_audioCtx?.state === "suspended") _audioCtx.resume();
     const speechRequestId = ++_speechRequestId;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    setStats(createPracticeStats());
+    setStats(createPracticeStats(stages.length));
     setShowResultModal(false);
     setIsPractice(true);
     setStageIndex(0);
@@ -472,7 +802,7 @@ export default function Home() {
             }
           }}
         >
-          <TokenBuilder enableWordSpeech={false} />
+          <TokenBuilder selectedTokens={tokens} translation={selectedSentence.chinese} enableWordSpeech={false} />
         </div>
       ) : (
         <section className="practiceShell" aria-label="Keyboard sentence practice">
