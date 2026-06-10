@@ -1,0 +1,212 @@
+{
+  // 文档用途：单词卡片组件设计交接规范
+  "componentName": "WordTokenCard",
+  "description": "用于 gramtree 句子构建界面中的单个英文单词卡片。截图展示的是单词 I 的当前/高亮状态。",
+
+  // 截图观察
+  "sourceObservation": {
+    "visibleElements": [
+      "浅橙色圆角竖向单词背景块",
+      "居中的深色英文大写字母 I",
+      "底部红色短下划线",
+      "下方露出一部分白色词性胶囊标签"
+    ],
+    "visualRole": "当前正在输入或当前聚焦的单词 token",
+    "overallFeel": "柔和、极简、教育工具风格，单词块是主要视觉焦点"
+  },
+
+  // 容器结构
+  "structure": {
+    "root": {
+      "display": "flex",
+      "direction": "column",
+      "alignItems": "center",
+      "justifyContent": "flex-start"
+    },
+    "layers": [
+      "wordBlock: 彩色单词背景块",
+      "wordText: 英文单词文字",
+      "statusUnderline: 状态/语法下划线",
+      "partOfSpeechPill: 词性胶囊标签"
+    ]
+  },
+
+  // 单词背景块
+  "wordBlock": {
+    "size": {
+      "observedWidth": "约 57px",
+      "observedHeight": "约 109px",
+      "recommendedMinWidth": "56px",
+      "recommendedMinHeight": "108px",
+      "aspectRatio": "约 0.52",
+      "note": "截图中的 I 是单字母，所以卡片呈窄竖条。多字母单词应按内容横向扩展，但保持相同高度节奏。"
+    },
+    "spacing": {
+      "paddingX": "约 14px",
+      "paddingY": "约 18px",
+      "textAlignment": "center"
+    },
+    "shape": {
+      "borderRadius": "约 14px",
+      "cornerStyle": "大圆角但不是胶囊形；圆角约为宽度的 25%",
+      "border": "none"
+    },
+    "color": {
+      "sampleApprox": "#FED9A3",
+      "tailwindApprox": "bg-orange-200",
+      "alternateTailwind": "bg-amber-200",
+      "usage": "代词或当前第一个 token 的柔和暖色背景"
+    },
+    "shadow": {
+      "observed": "无明显投影",
+      "recommendation": "默认不加阴影，避免卡片显得厚重"
+    }
+  },
+
+  // 英文文字
+  "wordText": {
+    "content": "I",
+    "typography": {
+      "fontFamily": "system sans-serif; 可使用 Arial / Helvetica / Inter / system-ui",
+      "fontSize": "约 70px",
+      "fontWeight": "800-900",
+      "lineHeight": "0.95-1.0",
+      "letterSpacing": "0",
+      "textAlign": "center"
+    },
+    "color": {
+      "sampleApprox": "#101828",
+      "tailwindApprox": "text-slate-950",
+      "usage": "主文字必须使用接近黑色的深 slate，不使用纯黑也可以"
+    },
+    "alignment": {
+      "horizontal": "居中",
+      "vertical": "视觉居中，略微偏上也可接受",
+      "note": "大写 I 的字形较窄，需靠父容器居中，而不是靠文字宽度自然对齐"
+    }
+  },
+
+  // 底部下划线
+  "statusUnderline": {
+    "position": {
+      "placement": "紧贴单词背景块底部下方",
+      "overlap": "可与背景块底部轻微贴合，形成状态条效果",
+      "marginTop": "约 -1px 到 2px"
+    },
+    "size": {
+      "width": "wordBlock 气泡宽度减 16px，居中显示；不跟随词性胶囊或中文释义宽度",
+      "height": "约 8px",
+      "borderRadius": "999px"
+    },
+    "color": {
+      "sampleApprox": "#EF4E45",
+      "tailwindApprox": "bg-red-500",
+      "alternateTailwind": "bg-rose-500"
+    },
+    "meaning": {
+      "state": "当前 active / 当前待输入 / 错误或强调状态",
+      "note": "截图中下划线为红色。若用于普通语法角色，可按词性映射不同颜色；若用于错误反馈，红色应保留。"
+    }
+  },
+
+  // 下方词性胶囊，截图只露出顶部
+  "partOfSpeechPill": {
+    "visibleInScreenshot": "只露出上半部分",
+    "position": {
+      "placement": "下划线下方居中",
+      "marginTop": "约 2px 到 6px"
+    },
+    "shape": {
+      "borderRadius": "999px",
+      "border": "1px solid",
+      "padding": "约 4px 12px"
+    },
+    "color": {
+      "background": {
+        "sampleApprox": "#FFFFFF",
+        "tailwindApprox": "bg-white"
+      },
+      "border": {
+        "sampleApprox": "#CBD5E1",
+        "tailwindApprox": "border-slate-300"
+      },
+      "text": {
+        "sampleApprox": "#475569",
+        "tailwindApprox": "text-slate-600"
+      }
+    },
+    "shadow": {
+      "sampleApprox": "0 2px 6px rgba(15, 23, 42, 0.12)",
+      "tailwindApprox": "shadow-sm"
+    }
+  },
+
+  // 状态规范
+  "states": {
+    "default": {
+      "wordBlock": "使用词性或句子成分对应的柔和背景色",
+      "underline": "使用语法角色颜色",
+      "opacity": "1"
+    },
+    "active": {
+      "wordBlock": "保持柔和背景色，可略微提高饱和度",
+      "underline": "使用高对比状态色，例如 red-500 或 purple-500",
+      "animation": "可使用轻微 scale 或 underline pulse，但幅度要小"
+    },
+    "inactive": {
+      "wordBlock": "可使用 slate-100 / blue-100 等低饱和背景",
+      "underline": "使用 slate-300",
+      "opacity": "0.75-0.9"
+    },
+    "error": {
+      "underline": "red-500",
+      "text": "保持深色或临时变 red-500",
+      "motion": "短暂横向 shake，持续约 300ms"
+    },
+    "completed": {
+      "underline": "使用对应语法角色色",
+      "wordBlock": "保留原色",
+      "motion": "无需持续动画"
+    }
+  },
+
+  // Tailwind 近似实现
+  "tailwindImplementationHints": {
+    "root": "flex flex-col items-center",
+    "wordBlock": "flex min-h-[108px] min-w-[56px] items-center justify-center rounded-[14px] bg-orange-200 px-3.5 py-4",
+    "wordText": "text-[70px] font-black leading-none tracking-normal text-slate-950",
+    "statusUnderline": "放在 wordBlock 外层同宽 stack 中，使用 h-2 w-[calc(100%-16px)] self-center rounded-full bg-red-500",
+    "partOfSpeechPill": "rounded-full border border-slate-300 bg-white px-3 py-1 text-sm font-extrabold text-slate-600 shadow-sm"
+  },
+
+  // 响应式建议
+  "responsiveRules": {
+    "desktop": {
+      "wordBlockHeight": "108px",
+      "wordTextSize": "70px",
+      "underlineWidth": "wordBlock bubble width - 16px"
+    },
+    "tablet": {
+      "wordBlockHeight": "88-96px",
+      "wordTextSize": "56-62px",
+      "underlineWidth": "wordBlock bubble width - 16px"
+    },
+    "mobile": {
+      "wordBlockHeight": "64-76px",
+      "wordTextSize": "40-48px",
+      "underlineWidth": "wordBlock bubble width - 16px",
+      "note": "移动端仍需保持文字居中和下划线居中，不要让单字母 token 过宽。"
+    }
+  },
+
+  // 开发注意事项
+  "developerNotes": [
+    "不要给单词背景块加明显边框，截图中主要靠背景色区分。",
+    "圆角要比普通 8px 卡片更大，接近 14px。",
+    "英文文字必须垂直和水平居中，尤其是单字母 I。",
+    "下划线应是独立状态元素，不要用 border-bottom 替代，否则难以控制圆角和宽度。",
+    "下划线应为单词背景块气泡宽度减 16px，并居中显示；它必须位于气泡外部，不能包裹或覆盖气泡。",
+    "词性胶囊应和单词块保持独立层级，使用白底、浅灰边框和轻微阴影。",
+    "如果用于句子构建器，多个 WordTokenCard 横向排列时，单词块之间可以贴近，但每个 token 的下方标签仍需独立居中。"
+  ]
+}

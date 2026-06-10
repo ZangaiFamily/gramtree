@@ -55,6 +55,583 @@ textarea {
   opacity: 1;
 }
 
+.gramtreeHome {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: clamp(24px, 5vw, 72px);
+  background: #ffffff;
+}
+
+.practiceHome {
+  align-items: stretch;
+  padding: 0;
+}
+
+.internalLink {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 10;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.internalLink:hover {
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.homeBuilderButton {
+  width: min(100%, 1680px);
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.homeBuilderButton:focus-visible {
+  outline: 3px solid rgba(167, 139, 250, 0.45);
+  outline-offset: 8px;
+}
+
+.practiceShell {
+  width: 100%;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: 88px minmax(0, 1fr) 86px;
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.practiceTopBar {
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #eef2f7;
+  padding: 0 clamp(18px, 2.8vw, 56px);
+}
+
+.practiceTopBar strong {
+  color: #6b7280;
+  font-size: clamp(1rem, 1.35vw, 1.55rem);
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.practiceTopBar span {
+  color: #f59e0b;
+  font-size: clamp(1.5rem, 2.1vw, 2.3rem);
+  font-weight: 900;
+}
+
+.practiceProgress {
+  position: absolute;
+  top: 109px;
+  left: clamp(18px, 2.8vw, 56px);
+  right: clamp(18px, 2.8vw, 56px);
+  height: 10px;
+  border: 2px solid #d1d5db;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.practiceProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #a855f7;
+  transition: width 0.2s ease;
+}
+
+.practiceCenter {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 72px 20px 40px;
+}
+
+.perfectStreak {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  text-align: center;
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
+  font-weight: 1000;
+  color: #f97316;
+  pointer-events: none;
+  animation: perfectSlideIn 1s ease-out both;
+}
+
+@keyframes perfectSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+}
+
+.practiceInputStage {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(16px, 3vh, 26px);
+  color: #111827;
+  text-align: center;
+}
+
+.practiceInputStage h1 {
+  max-width: min(86vw, 980px);
+  margin: 0;
+  color: #111827;
+  font-size: clamp(2.4rem, 4vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.practiceTypingHint {
+  animation: promptFloat 2.4s ease-in-out infinite;
+  margin: 0;
+  color: #a6adba;
+  font-size: clamp(1.1rem, 1.7vw, 1.7rem);
+  font-weight: 900;
+  text-shadow: 0 0 10px rgba(166, 173, 186, 0.16);
+  will-change: transform, color, text-shadow;
+}
+
+.practiceWordInputs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(12px, 2.2vw, 22px);
+  margin-top: clamp(28px, 8vh, 72px);
+  max-width: min(90vw, 980px);
+}
+
+.practiceWordInput {
+  min-width: clamp(80px, 10vw, 160px);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.practiceWordInput span {
+  min-height: clamp(2.2rem, 4vw, 4.4rem);
+  color: #111827;
+  font-size: clamp(2rem, 4vw, 4.4rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  white-space: pre;
+}
+
+.practiceWordInput i {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #d1d5db;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.activeWordInput i {
+  background: #a855f7;
+  transform: scaleX(1.04);
+}
+
+.inputError .practiceWordInputs {
+  animation: inputShake 0.3s ease;
+}
+
+.inputError .practiceTypingHint,
+.inputError .practiceWordInput span {
+  color: #ef4444;
+}
+
+.inputError .activeWordInput i {
+  background: #ef4444;
+}
+
+@keyframes inputShake {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-10px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(10px);
+  }
+}
+
+.practiceResult {
+  width: auto;
+  min-height: 0;
+  border: 0;
+  gap: 34px;
+  padding: 0;
+}
+
+.practiceResult .builderPrompt {
+  display: none;
+}
+
+.practiceResult .homeWordStrip {
+  row-gap: 28px;
+}
+
+.practiceResult .homeWordText {
+  font-size: clamp(40px, 5vw, 70px);
+}
+
+.practiceResult .homeSentenceTranslation {
+  font-size: clamp(2.2rem, 3.4vw, 4rem);
+}
+
+.practiceShortcuts {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(18px, 4vw, 72px);
+  padding: 16px 20px 30px;
+  color: #374151;
+  font-size: clamp(0.95rem, 1.25vw, 1.35rem);
+  font-weight: 900;
+}
+
+.practiceShortcuts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.practiceShortcuts button:hover {
+  background: #f8fafc;
+  color: #111827;
+  transform: translateY(-2px);
+}
+
+.practiceShortcuts button:active {
+  transform: translateY(1px);
+}
+
+.practiceShortcuts button:focus-visible {
+  outline: 3px solid rgba(168, 85, 247, 0.28);
+  outline-offset: 3px;
+}
+
+.practiceShortcuts button:hover kbd,
+.practiceShortcuts button:focus-visible kbd {
+  border-color: #c4b5fd;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 2px 0 #a78bfa;
+}
+
+.practiceShortcuts button:active kbd {
+  box-shadow: 0 1px 0 #a78bfa;
+}
+
+kbd {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  color: #374151;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.95em;
+  box-shadow: 0 2px 0 #d1d5db;
+}
+
+.resultOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.62);
+  backdrop-filter: blur(8px);
+  animation: overlayFadeIn 0.24s ease both;
+}
+
+.resultModal {
+  width: min(100%, 1020px);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.32);
+  animation: resultPopIn 0.36s cubic-bezier(0.18, 0.9, 0.24, 1.14) both;
+}
+
+.resultHeader {
+  min-height: 104px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 42px;
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  font-weight: 900;
+}
+
+.resultHeader span {
+  color: #f59e0b;
+}
+
+.resultScoreRow {
+  min-height: 154px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 26px 42px;
+}
+
+.resultGrade {
+  color: #f97316;
+  font-size: clamp(3.8rem, 5.4vw, 5.5rem);
+  font-weight: 1000;
+  line-height: 0.9;
+}
+
+.resultScore {
+  color: #111827;
+  font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+  font-weight: 900;
+}
+
+.resultScoreRow dl {
+  display: flex;
+  gap: clamp(24px, 4vw, 54px);
+  margin: 0;
+}
+
+.resultScoreRow div {
+  text-align: center;
+}
+
+.resultScoreRow dt {
+  color: #111827;
+  font-size: clamp(2rem, 3vw, 2.9rem);
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.resultScoreRow dd {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: clamp(0.95rem, 1.2vw, 1.2rem);
+  font-weight: 800;
+}
+
+.resultStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.resultStatsGrid div {
+  min-height: 138px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.resultStatsGrid div:last-child {
+  border-right: 0;
+}
+
+.resultStatsGrid span {
+  color: #6b7280;
+  font-size: clamp(0.95rem, 1.2vw, 1.15rem);
+  font-weight: 900;
+}
+
+.resultStatsGrid strong {
+  color: #111827;
+  font-size: clamp(1.6rem, 2.1vw, 2.2rem);
+  font-weight: 1000;
+}
+
+.resultMessage {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 34px 24px 24px;
+  text-align: center;
+}
+
+.resultMessage strong {
+  color: #6b7280;
+  font-size: clamp(1.1rem, 1.5vw, 1.45rem);
+  font-weight: 900;
+}
+
+.resultMessage span {
+  color: #9ca3af;
+  font-size: clamp(0.95rem, 1.2vw, 1.15rem);
+  font-weight: 800;
+}
+
+.resultActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 14px 42px 42px;
+}
+
+.resultActions button {
+  min-height: 70px;
+  border-radius: 12px;
+  font-size: clamp(1rem, 1.35vw, 1.3rem);
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.resultActions button:hover {
+  transform: translateY(-2px);
+}
+
+.resultActions button:active {
+  transform: translateY(1px);
+}
+
+.secondaryResultButton {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+}
+
+.secondaryResultButton:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+}
+
+.primaryResultButton {
+  border: 0;
+  background: #9333ea;
+  color: #ffffff;
+  box-shadow: 0 16px 32px rgba(147, 51, 234, 0.28);
+}
+
+.primaryResultButton:hover {
+  box-shadow: 0 18px 36px rgba(147, 51, 234, 0.34);
+}
+
+.snowLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.snowLayer i {
+  position: absolute;
+  top: -10px;
+  left: var(--left);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, var(--opacity));
+  animation: snowFall var(--duration) linear infinite;
+  animation-delay: var(--delay);
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes resultPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes snowFall {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: var(--opacity);
+  }
+  100% {
+    transform: translateY(100%) translateX(var(--drift));
+    opacity: 0;
+  }
+}
+
 .inputPane {
   padding: 28px 24px;
   background: #eef4f7;
@@ -196,11 +773,213 @@ textarea:focus {
 .wordInspector {
   border: 1px solid #dde4d7;
   border-radius: 8px;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  overflow: hidden;
   padding: 16px;
   background: #ffffff;
 }
 
-.wordInspectorHeader {
+.builderPrompt {
+  color: #a78bfa;
+  animation: promptFloat 2.4s ease-in-out infinite;
+  max-width: 100%;
+  font-size: clamp(0.82rem, 1.3vw, 0.95rem);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.32);
+  will-change: transform, color, text-shadow;
+}
+
+@keyframes promptFloat {
+  0%,
+  100% {
+    color: #c4b5fd;
+    transform: translateY(4px);
+    text-shadow: 0 0 8px rgba(196, 181, 253, 0.24);
+  }
+
+  50% {
+    color: #8b5cf6;
+    transform: translateY(-5px);
+    text-shadow: 0 0 14px rgba(139, 92, 246, 0.42);
+  }
+}
+
+.wordStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  row-gap: 14px;
+  padding: 2px 4px 0;
+}
+
+.builderToken {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.wordBubbleStack {
+  display: inline-flex;
+  align-items: stretch;
+  flex-direction: column;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.phoneticBadge {
+  min-height: 22px;
+  margin-bottom: 7px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.wordBlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 56px;
+  min-height: 108px;
+  border-radius: 14px;
+  padding: 18px 14px;
+}
+
+.wordText {
+  display: block;
+  color: #0f172a;
+  font-size: 70px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 0.95;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tokenFillPronoun {
+  background: #fed7aa;
+}
+
+.tokenFillLike {
+  background: #fda4af;
+}
+
+.tokenFillPhrase {
+  background: #bfdbfe;
+}
+
+.tokenFillTime {
+  background: #bae6fd;
+}
+
+.tokenFillDefault {
+  background: #e2e8f0;
+}
+
+.grammarUnderline {
+  align-self: center;
+  width: calc(100% - 16px);
+  height: 8px;
+  margin-top: -1px;
+  border-radius: 999px;
+}
+
+.tokenUnderlinePronoun {
+  background: #fdba74;
+}
+
+.tokenUnderlineVerb {
+  background: #22c55e;
+}
+
+.tokenUnderlineModifier {
+  background: #a855f7;
+}
+
+.tokenUnderlineNoun {
+  background: #3b82f6;
+}
+
+.tokenUnderlineDeterminer {
+  background: #14b8a6;
+}
+
+.tokenUnderlineParticle {
+  background: #64748b;
+}
+
+.partOfSpeechPill {
+  margin-top: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.92rem;
+  font-weight: 900;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.chineseGloss {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.sentenceTranslation {
+  margin: 2px 0 0;
+  color: #475569;
+  max-width: 100%;
+  font-size: clamp(1rem, 2.1vw, 1.28rem);
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.legacyWordInspector {
+  border: 1px solid #dde4d7;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.legacyWordInspectorHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -208,22 +987,22 @@ textarea:focus {
   margin-bottom: 10px;
 }
 
-.wordInspectorHeader .eyebrow {
+.legacyWordInspectorHeader .eyebrow {
   margin: 0;
   color: #8c1d12;
 }
 
-.wordInspectorHeader span {
+.legacyWordInspectorHeader span {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
-.wordStrip {
-  display: flex;
-  flex-wrap: wrap;
+.legacyWordInspector .wordStrip {
   align-items: flex-start;
+  justify-content: flex-start;
   gap: 10px;
+  padding: 0;
 }
 
 .componentGroup {
@@ -331,28 +1110,13 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(47, 111, 159, 0.16);
 }
 
-.wordText,
-.wordPos,
-.wordComponent {
+.legacyWordText {
   display: block;
-}
-
-.wordText {
+  color: var(--ink);
   font-size: 2.1rem;
   font-weight: 900;
-}
-
-.wordPos {
-  margin-top: 4px;
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.wordComponent {
-  margin-top: 2px;
-  color: #526174;
-  font-size: 0.7rem;
-  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .toneDeterminer {
@@ -424,6 +1188,68 @@ textarea:focus {
 .wordChip:hover .wordTooltip,
 .wordChip:focus-visible .wordTooltip {
   display: block;
+}
+
+.homeWordInspector {
+  width: min(100%, 1680px);
+  border: 0;
+  gap: clamp(21px, 3.5vh, 46px);
+  padding: clamp(14px, 2vw, 32px) 0;
+  overflow: visible;
+}
+
+.homeWordInspector .builderPrompt {
+  font-size: clamp(0.9rem, 1.8vw, 1.5rem);
+  text-shadow: 0 0 9px rgba(167, 139, 250, 0.42);
+}
+
+.homeWordStrip {
+  row-gap: clamp(12px, 2vw, 21px);
+}
+
+.homeBuilderToken {
+  max-width: none;
+}
+
+.homePhoneticBadge {
+  min-height: 16px;
+  margin-bottom: 7px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: clamp(0.45rem, 0.75vw, 0.78rem);
+}
+
+.homeWordBlock {
+  min-height: 54px;
+  padding: 9px 7px;
+  border-radius: 7px;
+  min-width: 28px;
+}
+
+.homeWordText {
+  font-size: clamp(20px, 2.5vw, 35px);
+}
+
+.homePartOfSpeechPill {
+  margin-top: 3px;
+  padding: 2px 6px 2px;
+  font-size: clamp(0.39rem, 0.55vw, 0.53rem);
+}
+
+.homeChineseGloss {
+  margin-top: 7px;
+  font-size: clamp(0.48rem, 0.68vw, 0.73rem);
+}
+
+.homeSentenceTranslation {
+  margin-top: 2px;
+  font-size: clamp(0.85rem, 1.5vw, 1.4rem);
+}
+
+.homeWordInspector .grammarUnderline {
+  height: 4px;
+  width: calc(100% - 8px);
+  margin-top: -0.5px;
 }
 
 .constituencyShell {
@@ -526,6 +1352,43 @@ textarea:focus {
     flex-direction: column;
   }
 
+  .wordInspector {
+    gap: 14px;
+    padding: 16px 12px;
+  }
+
+  .homeWordInspector {
+    gap: 22px;
+    padding: 21px 0 15px;
+  }
+
+  .wordStrip {
+    row-gap: 22px;
+  }
+
+  .homeWordStrip {
+    row-gap: clamp(10px, 2vw, 14px);
+  }
+
+  .builderToken {
+    max-width: 33.333%;
+  }
+
+  .wordBlock {
+    min-width: 48px;
+    min-height: 92px;
+    border-radius: 12px;
+    padding: 14px 12px;
+  }
+
+  .wordText {
+    font-size: clamp(56px, 7vw, 62px);
+  }
+
+  .grammarUnderline {
+    height: 7px;
+  }
+
   .constituencyShell {
     min-height: 520px;
     padding: 16px;
@@ -534,5 +1397,172 @@ textarea:focus {
   .constituencyCanvas,
   .constituencySvg {
     min-height: 420px;
+  }
+}
+
+@media (max-width: 520px) {
+  .wordInspector {
+    gap: 12px;
+    padding: 14px 10px;
+  }
+
+  .builderPrompt {
+    font-size: 0.82rem;
+  }
+
+  .wordStrip {
+    row-gap: 18px;
+  }
+
+  .homeWordStrip {
+    row-gap: 10px;
+  }
+
+  .builderToken {
+    max-width: 50%;
+  }
+
+  .phoneticBadge {
+    min-height: 19px;
+    margin-bottom: 5px;
+    padding: 2px 5px;
+    font-size: 0.68rem;
+  }
+
+  .wordBlock {
+    min-width: 42px;
+    min-height: 72px;
+    border-radius: 11px;
+    padding: 10px 10px;
+  }
+
+  .wordText {
+    font-size: clamp(40px, 11vw, 48px);
+  }
+
+  .grammarUnderline {
+    height: 6px;
+  }
+
+  .partOfSpeechPill {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+  }
+
+  .chineseGloss {
+    margin-top: 6px;
+    font-size: 0.78rem;
+  }
+
+  .sentenceTranslation {
+    font-size: 0.98rem;
+  }
+
+  .gramtreeHome {
+    padding: 48px 12px 20px;
+  }
+
+  .practiceHome {
+    padding: 0;
+  }
+
+  .practiceShell {
+    grid-template-rows: 76px minmax(0, 1fr) 112px;
+    border-radius: 18px;
+  }
+
+  .practiceTopBar {
+    height: 76px;
+  }
+
+  .practiceProgress {
+    top: 95px;
+  }
+
+  .practiceCenter {
+    padding: 70px 12px 24px;
+  }
+
+  .practiceShortcuts {
+    height: 112px;
+    align-content: center;
+    padding: 10px 12px 16px;
+  }
+
+  .resultOverlay {
+    padding: 12px;
+  }
+
+  .resultModal {
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    border-radius: 16px;
+  }
+
+  .resultHeader {
+    min-height: 66px;
+    padding: 0 18px;
+  }
+
+  .resultScoreRow {
+    min-height: 118px;
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px 18px;
+  }
+
+  .resultScoreRow dl {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .resultStatsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .resultStatsGrid div {
+    min-height: 82px;
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .resultStatsGrid div:last-child {
+    border-bottom: 0;
+  }
+
+  .resultMessage {
+    padding: 22px 16px 16px;
+  }
+
+  .resultActions {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px 18px 22px;
+  }
+
+  .resultActions button {
+    min-height: 54px;
+  }
+
+  .internalLink {
+    top: 10px;
+    right: 10px;
+    padding: 6px 10px;
+  }
+
+  .homeWordInspector {
+    gap: 16px;
+  }
+
+  .homeBuilderToken {
+    max-width: 50%;
+  }
+
+  .homeWordText {
+    font-size: clamp(0.88rem, 5vw, 1.4rem);
+  }
+
+  .homeSentenceTranslation {
+    font-size: clamp(0.68rem, 3.5vw, 1rem);
   }
 }

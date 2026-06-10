@@ -1,311 +1,601 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import { parseSentenceAnalysis, type SentenceParse, type SyntaxNode, type WordAnalysis } from "@/lib/grammar";
+import Link from "next/link";
+import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type PositionedSyntaxNode = Omit<SyntaxNode, "children"> & {
-  x: number;
-  y: number;
-  width: number;
-  left: number;
-  children?: PositionedSyntaxNode[];
+type Token = {
+  word: string;
+  phonetic: string;
+  partOfSpeech: string;
+  chinese: string;
+  fillTone: string;
+  underlineTone: string;
 };
 
-const boxWidth = 104;
-const boxHeight = 44;
-const wordBoxHeight = 44;
-const levelHeight = 84;
-const siblingGap = 34;
+type Stage = {
+  answer: string;
+  chinese: string;
+  tokenIndexes: number[];
+};
 
-function syntaxCode(node: SyntaxNode) {
-  const map: Record<string, string> = {
-    ROOT: "Root",
-    Sentence: "Sentence",
-    "Noun Phrase": "Noun Phrase",
-    "Verb Phrase": "Verb Phrase",
-    "Prepositional Phrase": "Prepositional Phrase",
-    "Adjective Phrase": "Adjective Phrase",
-    Determiner: "Determiner",
-    "Possessive Determiner": "Possessive Determiner",
-    Pronoun: "Pronoun",
-    Noun: "Noun",
-    Word: "Word",
-    Adjective: "Adjective",
-    Adverb: "Adverb",
-    Preposition: "Preposition",
-    "Modal Auxiliary": "Modal Auxiliary",
-    "Auxiliary Verb": "Auxiliary Verb",
-    "Main Verb": "Verb",
-    "Linking Verb": "Linking Verb",
-    Conjunction: "Conjunction",
-    Punctuation: "Punctuation",
-    Value: "Value",
-  };
+type PracticeStats = {
+  startedAt: number;
+  finishedAt: number | null;
+  answered: number;
+  perfect: number;
+  good: number;
+  skipped: number;
+  mistakes: number;
+  currentStreak: number;
+  maxStreak: number;
+  attemptsByStage: number[];
+  revealedByStage: boolean[];
+};
 
-  return map[node.label] ?? node.label;
+const tokens: Token[] = [
+  {
+    word: "The",
+    phonetic: "/ðə/",
+    partOfSpeech: "限定词",
+    chinese: "（定冠词）",
+    fillTone: "tokenFillPhrase",
+    underlineTone: "tokenUnderlineDeterminer",
+  },
+  {
+    word: "gramtree",
+    phonetic: "/ˈgræm triː/",
+    partOfSpeech: "名词",
+    chinese: "语法树",
+    fillTone: "tokenFillPhrase",
+    underlineTone: "tokenUnderlineNoun",
+  },
+];
+
+const stages: Stage[] = [
+  { answer: "The", chinese: "（定冠词）", tokenIndexes: [0] },
+  { answer: "gramtree", chinese: "语法树", tokenIndexes: [1] },
+  { answer: "The gramtree", chinese: "语法树", tokenIndexes: [0, 1] },
+];
+
+function normalizeInput(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function nodeLabel(node: SyntaxNode) {
-  return node.children?.length ? syntaxCode(node) : node.text ?? "";
-}
-
-function nodeBoxWidth(node: SyntaxNode) {
-  const label = nodeLabel(node);
-  return Math.max(boxWidth, label.length * 10 + 38, (node.role?.length ?? 0) * 8 + 36);
-}
-
-function layoutSyntaxTree(node: SyntaxNode, depth = 0): PositionedSyntaxNode {
-  const children = node.children?.map((child) => layoutSyntaxTree(child, depth + 1)) ?? [];
-  const ownWidth = nodeBoxWidth(node);
-  const childWidth = children.length
-    ? children.reduce((sum, child) => sum + child.width, 0) + siblingGap * (children.length - 1)
-    : 0;
-  const width = Math.max(ownWidth, childWidth);
-  let cursor = (width - childWidth) / 2;
-  const positionedChildren = children.map((child) => {
-    const positioned = { ...child, left: cursor };
-    cursor += child.width + siblingGap;
-    return positioned;
-  });
-
+function createPracticeStats(): PracticeStats {
   return {
-    ...node,
-    x: width / 2,
-    y: 36 + depth * levelHeight,
-    width,
-    left: 0,
-    children: positionedChildren,
+    startedAt: Date.now(),
+    finishedAt: null,
+    answered: 0,
+    perfect: 0,
+    good: 0,
+    skipped: 0,
+    mistakes: 0,
+    currentStreak: 0,
+    maxStreak: 0,
+    attemptsByStage: Array.from({ length: stages.length }, () => 0),
+    revealedByStage: Array.from({ length: stages.length }, () => false),
   };
 }
 
-function maxSyntaxDepth(node: PositionedSyntaxNode): number {
-  if (!node.children?.length) return 1;
-  return 1 + Math.max(...node.children.map(maxSyntaxDepth));
+function formatDuration(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}分${seconds}秒`;
 }
 
-function renderSyntaxNode(node: PositionedSyntaxNode, offsetX = 0): ReactNode[] {
-  const absoluteX = offsetX + node.x;
-  const isLeaf = !node.children?.length;
-  const label = nodeLabel(node);
-  const nodeWidth = nodeBoxWidth(node);
-  const nodeClass = isLeaf ? "constituencyWordNode" : "constituencyPhraseNode";
-  const children =
-    node.children?.flatMap((child) => renderSyntaxNode(child, offsetX + child.left)) ?? [];
-  const edges =
-    node.children?.map((child) => {
-      const childOffsetX = offsetX + child.left;
-      const childX = childOffsetX + child.x;
-      return (
-        <line
-          key={`${node.id}-${child.id}-edge`}
-          className="constituencyEdge"
-          x1={absoluteX}
-          y1={node.y + boxHeight / 2}
-          x2={childX}
-          y2={child.y - boxHeight / 2}
-        />
-      );
-    }) ?? [];
+let _speechRequestId = 0;
 
-  return [
-    ...edges,
-    ...children,
-    <g key={node.id} transform={`translate(${absoluteX - nodeWidth / 2} ${node.y - boxHeight / 2})`}>
-      <rect className={nodeClass} width={nodeWidth} height={isLeaf ? wordBoxHeight : boxHeight} rx="8" />
-      <text className="constituencyText" x={nodeWidth / 2} y={node.role && !isLeaf ? 21 : 28} textAnchor="middle">
-        {label}
-      </text>
-      {node.role && !isLeaf ? (
-        <text className="constituencyRoleText" x={nodeWidth / 2} y="35" textAnchor="middle">
-          {node.role}
-        </text>
-      ) : null}
-    </g>,
-  ];
+function speakWord(text: string) {
+  if (!("speechSynthesis" in window)) return;
+  const requestId = ++_speechRequestId;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US";
+  utterance.rate = 0.82;
+  const pickVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return false;
+    const usVoice = voices.find((v) => /en-US/.test(v.lang) && /(Google|Microsoft|Samantha)/.test(v.name))
+      ?? voices.find((v) => /en-US/.test(v.lang));
+    if (usVoice) utterance.voice = usVoice;
+    return true;
+  };
+  const speak = () => {
+    if (requestId !== _speechRequestId) return;
+    window.speechSynthesis.cancel();
+    requestAnimationFrame(() => {
+      if (requestId !== _speechRequestId) return;
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+  if (!pickVoice()) {
+    window.speechSynthesis.addEventListener("voiceschanged", () => {
+      if (requestId !== _speechRequestId) return;
+      pickVoice();
+      speak();
+    }, { once: true });
+  } else {
+    speak();
+  }
 }
 
-function ConstituencyDiagram({ tree: syntaxTree }: { tree: SyntaxNode }) {
-  const tree = useMemo(() => layoutSyntaxTree(syntaxTree), [syntaxTree]);
-  const width = Math.max(760, tree.width + 96);
-  const height = Math.max(560, maxSyntaxDepth(tree) * levelHeight + 72);
+let _audioCtx: AudioContext | null = null;
 
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  if (_audioCtx.state === "suspended") _audioCtx.resume();
+  return _audioCtx;
+}
+
+function playKeyClick() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+
+    [250, 650, 1200].forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    });
+  } catch { /* audio not available */ }
+}
+
+function playSuccessChime() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+
+    [523.25, 659.25, 783.99].forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = now + index * 0.045;
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.07, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.18);
+    });
+  } catch { /* audio not available */ }
+}
+
+function TokenBuilder({
+  className = "",
+  selectedTokens = tokens,
+  translation = "语法树",
+  enableWordSpeech = true,
+}: {
+  className?: string;
+  selectedTokens?: Token[];
+  translation?: string;
+  enableWordSpeech?: boolean;
+}) {
   return (
-    <div className="constituencyShell" aria-label="Constituency parse tree">
-      <div className="constituencyHeader">
-        <div>
-          <p className="eyebrow">Constituency Parse</p>
-          <h2>Phrase structure tree</h2>
-        </div>
-      </div>
-      <div className="constituencyCanvas">
-        <svg className="constituencySvg" viewBox={`0 0 ${width} ${height}`} role="img">
-          <title>Constituency parse tree</title>
-          <g transform="translate(48 0)">{renderSyntaxNode(tree)}</g>
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function posTone(partOfSpeech: string) {
-  if (partOfSpeech === "Determiner") return "toneDeterminer";
-  if (partOfSpeech === "Noun") return "toneNoun";
-  if (partOfSpeech === "Linking Verb" || partOfSpeech === "Verb") return "toneVerb";
-  if (partOfSpeech === "Preposition") return "tonePreposition";
-  if (partOfSpeech === "Adjective" || partOfSpeech === "Adverb") return "toneModifier";
-  return "toneDefault";
-}
-
-function componentTone(component: string) {
-  if (component === "Subject") return "componentSubject";
-  if (component === "Verb") return "componentVerb";
-  if (component === "Adverbial") return "componentPreposition";
-  if (component === "Object") return "componentPredicate";
-  if (component === "Complement") return "componentComplement";
-  return "componentDefault";
-}
-
-function groupWords(words: WordAnalysis[]) {
-  return words.reduce<WordAnalysis[][]>((groups, word) => {
-    const lastGroup = groups[groups.length - 1];
-    const lastWord = lastGroup?.[lastGroup.length - 1];
-    if (!lastGroup || lastWord?.sentenceComponent !== word.sentenceComponent) {
-      groups.push([word]);
-    } else {
-      lastGroup.push(word);
-    }
-    return groups;
-  }, []);
-}
-
-function WordInspector({ words }: { words: WordAnalysis[] }) {
-  const groups = groupWords(words);
-
-  return (
-    <section className="wordInspector" aria-label="Word-level part of speech inspector">
-      <div className="wordInspectorHeader">
-        <p className="eyebrow">Sentence Component Inspector</p>
-        <span>Hover a word to inspect POS</span>
-      </div>
-      <div className="wordStrip">
-        {groups.map((group) => (
-          <div className={`componentGroup ${componentTone(group[0].sentenceComponent)}`} key={`${group[0].sentenceComponent}-${group[0].id}`}>
-            <div className="phoneticRow">
-              {group.map((word) => (
-                <span key={`${word.id}-sound`}>/{word.text.toLowerCase()}/</span>
-              ))}
-            </div>
-            <div className="componentWords">
-              {group.map((word) => (
-                <button className={`wordChip ${posTone(word.partOfSpeech)}`} key={word.id} type="button">
-                  <span className="wordText">{word.text}</span>
-                  <span className="wordTooltip" role="tooltip">
-                    <strong>{word.text}</strong>
-                    <span>Part of speech: {word.partOfSpeech}</span>
-                    <span>Sentence component: {word.sentenceComponent}</span>
-                    <span>Role: {word.role}</span>
-                    {word.chunk ? <span>Phrase chunk: {word.chunk}</span> : null}
-                    {word.tags.length ? <span>Compromise tags: {word.tags.join(", ")}</span> : null}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="posRow">
-              {group.map((word) => (
-                <span className={posTone(word.partOfSpeech)} key={`${word.id}-pos`}>
-                  {word.partOfSpeech}
-                </span>
-              ))}
-            </div>
-            <div className="componentLabel">{group[0].sentenceComponent}</div>
+    <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree sentence builder">
+      <div className="builderPrompt">按任意键，开始造这个句子</div>
+      <div className="wordStrip homeWordStrip">
+        {selectedTokens.map((token) => (
+          <div
+            className="builderToken homeBuilderToken"
+            key={token.word}
+            onClick={enableWordSpeech ? () => speakWord(token.word) : undefined}
+          >
+            <span className="phoneticBadge homePhoneticBadge">{token.phonetic}</span>
+            <span className="wordBubbleStack">
+              <span className={`wordBlock homeWordBlock ${token.fillTone}`}>
+                <span className="wordText homeWordText">{token.word}</span>
+              </span>
+              <span className={`grammarUnderline ${token.underlineTone}`} />
+            </span>
+            <span className="partOfSpeechPill homePartOfSpeechPill">{token.partOfSpeech}</span>
+            <span className="chineseGloss homeChineseGloss">{token.chinese}</span>
           </div>
         ))}
       </div>
+      <p className="sentenceTranslation homeSentenceTranslation">
+        {translation}
+      </p>
     </section>
   );
 }
 
-const examples = [
-  "This note is about the lesson",
-  "The curious student quickly reads a grammar book.",
-  "She is happy in the classroom.",
-  "My teacher will explain the visual tree.",
-];
-
 export default function Home() {
-  const [sentence, setSentence] = useState(examples[0]);
-  const analysis = useMemo<SentenceParse>(() => parseSentenceAnalysis(sentence), [sentence]);
-  const words = analysis.tokens;
-  const phraseLabels = Array.from(new Set(words.map((word) => word.sentenceComponent))).slice(0, 4);
-  const wordCount = sentence.trim().split(/\s+/).filter(Boolean).length;
+  const [isPractice, setIsPractice] = useState(false);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [wordInputs, setWordInputs] = useState<string[]>([]);
+  const [activeInputIndex, setActiveInputIndex] = useState(0);
+  const [status, setStatus] = useState<"typing" | "success" | "error">("typing");
+  const [score, setScore] = useState(0);
+  const [stats, setStats] = useState<PracticeStats>(() => createPracticeStats());
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [perfectStreak, setPerfectStreak] = useState<number | null>(null);
+
+  const stage = stages[stageIndex];
+  const stageWords = useMemo(() => stage.answer.split(" "), [stage.answer]);
+  const submittedAnswer = wordInputs.join(" ");
+  const revealedTokens = useMemo(
+    () => stage.tokenIndexes.map((index) => tokens[index]),
+    [stage.tokenIndexes],
+  );
+
+  function startPractice() {
+    if (_audioCtx?.state === "suspended") _audioCtx.resume();
+    const speechRequestId = ++_speechRequestId;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setStats(createPracticeStats());
+    setShowResultModal(false);
+    setIsPractice(true);
+    setStageIndex(0);
+    setWordInputs(Array.from({ length: stages[0].answer.split(" ").length }, () => ""));
+    setActiveInputIndex(0);
+    setStatus("typing");
+    setScore(0);
+    setTimeout(() => {
+      if (speechRequestId !== _speechRequestId) return;
+      speakWord(stages[0].answer);
+    }, 200);
+  }
+
+  function openResultModal() {
+    setStats((current) => ({
+      ...current,
+      finishedAt: current.finishedAt ?? Date.now(),
+    }));
+    window.setTimeout(() => setShowResultModal(true), 650);
+  }
+
+  function advanceStage() {
+    if (stageIndex < stages.length - 1) {
+      const nextStageIndex = stageIndex + 1;
+      setStageIndex(nextStageIndex);
+      setWordInputs(Array.from({ length: stages[nextStageIndex].answer.split(" ").length }, () => ""));
+      setActiveInputIndex(0);
+      setStatus("typing");
+    } else {
+      setStatus("success");
+      openResultModal();
+    }
+  }
+
+  function submitStage() {
+    if (normalizeInput(submittedAnswer) === normalizeInput(stage.answer)) {
+      playSuccessChime();
+      const wasPerfect = stats.attemptsByStage[stageIndex] === 0 && !stats.revealedByStage[stageIndex];
+      if (wasPerfect) {
+        const nextStreak = stats.currentStreak + 1;
+        setPerfectStreak(nextStreak);
+        window.setTimeout(() => setPerfectStreak(null), 1000);
+      }
+      const points = wasPerfect ? 1000 : 720;
+      setScore((current) => current + points);
+      setStats((current) => {
+        const nextStreak = current.currentStreak + 1;
+        return {
+          ...current,
+          answered: current.answered + 1,
+          perfect: current.perfect + (wasPerfect ? 1 : 0),
+          good: current.good + (wasPerfect ? 0 : 1),
+          currentStreak: nextStreak,
+          maxStreak: Math.max(current.maxStreak, nextStreak),
+        };
+      });
+      setStatus("success");
+      if (stageIndex === stages.length - 1) {
+        openResultModal();
+      }
+      return;
+    }
+
+    setStats((current) => ({
+      ...current,
+      mistakes: current.mistakes + 1,
+      currentStreak: 0,
+      attemptsByStage: current.attemptsByStage.map((attempts, index) =>
+        index === stageIndex ? attempts + 1 : attempts,
+      ),
+    }));
+    setStatus("error");
+    window.setTimeout(() => {
+      setWordInputs(Array.from({ length: stageWords.length }, () => ""));
+      setActiveInputIndex(0);
+      setStatus("typing");
+    }, 300);
+  }
+
+  function playPronunciation() {
+    speakWord(stage.answer);
+  }
+
+  function showAnswer() {
+    setStats((current) => {
+      if (current.revealedByStage[stageIndex]) return current;
+
+      return {
+        ...current,
+        skipped: current.skipped + 1,
+        currentStreak: 0,
+        revealedByStage: current.revealedByStage.map((isRevealed, index) =>
+          index === stageIndex ? true : isRevealed,
+        ),
+      };
+    });
+    setWordInputs(stageWords);
+    setActiveInputIndex(stageWords.length - 1);
+    setStatus("typing");
+  }
+
+  function handleSubmitClick() {
+    if (status === "success") {
+      advanceStage();
+      return;
+    }
+
+    submitStage();
+  }
+
+  useEffect(() => {
+    if (!isPractice) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key === "'") {
+        event.preventDefault();
+        playPronunciation();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === ";") {
+        event.preventDefault();
+        showAnswer();
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === "Escape") {
+        if (showResultModal) {
+          setShowResultModal(false);
+        } else {
+          setIsPractice(false);
+        }
+        return;
+      }
+
+      if (status === "success") {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          advanceStage();
+        }
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitStage();
+        return;
+      }
+
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        playKeyClick();
+        setWordInputs((current) =>
+          current.map((value, index) =>
+            index === activeInputIndex ? value.slice(0, -1) : value,
+          ),
+        );
+        return;
+      }
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        if (wordInputs[activeInputIndex]?.length && activeInputIndex < stageWords.length - 1) {
+          setActiveInputIndex((current) => current + 1);
+        }
+        return;
+      }
+
+      if (event.key.length === 1 && /^[a-zA-Z']$/.test(event.key)) {
+        playKeyClick();
+        setWordInputs((current) =>
+          current.map((value, index) =>
+            index === activeInputIndex ? `${value}${event.key}` : value,
+          ),
+        );
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeInputIndex, isPractice, showResultModal, stage.answer, stageIndex, stageWords, stats.attemptsByStage, stats.revealedByStage, status, submittedAnswer, wordInputs]);
+
+  const finishedAt = stats.finishedAt ?? Date.now();
+  const duration = formatDuration(finishedAt - stats.startedAt);
+  const grade = score >= 8500 ? "S" : score >= 7000 ? "A" : score >= 5200 ? "B" : "C";
+
+  const snowflakes = useMemo(() => {
+    return Array.from({ length: 45 }).map((_, i) => ({
+      left: (i * 2.3 + 1.7 * (i % 7)) % 100,
+      size: 4 + (i % 5) * 2,
+      duration: 5 + (i % 6),
+      delay: (i * -0.3) % 8,
+      drift: (i % 7 - 3) * 12,
+      opacity: 0.35 + (i % 4) * 0.15,
+    }));
+  }, [showResultModal]);
 
   return (
-    <main className="pageShell">
+    <main className={`gramtreeHome ${isPractice ? "practiceHome" : ""}`}>
+      {!isPractice && (<>
+      <Link
+        href="/internal"
+        className="internalLink"
+        aria-label="Open internal grammar diagram page"
+      >
+        Internal
+      </Link>
+
       <a
-        href="https://github.com/ZangaiFamily/gramtree"
+        className="githubCorner"
+        href="https://github.com"
         target="_blank"
         rel="noopener noreferrer"
-        className="githubCorner"
         aria-label="View source on GitHub"
+        style={{ left: 20, right: 'auto' }}
       >
         <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
         </svg>
       </a>
-      <section className="inputPane" aria-labelledby="app-title">
-        <div>
-          <p className="eyebrow">Syntax Studio</p>
-          <h1 id="app-title">Sentence map</h1>
-          <p className="intro">
-            Type a simple English sentence and watch the grammar tree redraw as the subject, predicate, modifiers, and complements change.
-          </p>
+      </>)}
+
+      {!isPractice ? (
+        <div
+          className="homeBuilderButton"
+          role="button"
+          tabIndex={0}
+          onClick={startPractice}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              startPractice();
+            }
+          }}
+        >
+          <TokenBuilder enableWordSpeech={false} />
         </div>
-
-        <label className="sentenceLabel" htmlFor="sentence">
-          English sentence
-        </label>
-        <textarea
-          id="sentence"
-          value={sentence}
-          onChange={(event) => setSentence(event.target.value)}
-          rows={4}
-          spellCheck
-          placeholder="Type an English sentence..."
-        />
-
-        <div className="exampleRow" aria-label="Example sentences">
-          {examples.map((example) => (
-            <button key={example} type="button" onClick={() => setSentence(example)}>
-              {example}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="diagramPane" aria-label="Syntax tree result">
-        <div className="diagramHeader">
-          <div>
-            <p className="eyebrow">Live Grammar Diagram</p>
-            <h2>Constituency view</h2>
+      ) : (
+        <section className="practiceShell" aria-label="Keyboard sentence practice">
+          <div className="practiceTopBar">
+            <strong>
+              用键盘输入英文，按 Tab 切换单词（{stageIndex + 1}/{stages.length}）
+            </strong>
+            <span>{score}</span>
           </div>
-          <span>{wordCount} words</span>
-        </div>
-        <div className="structureBar" aria-label="Detected grammar structures">
-          <strong>Phrases:</strong>
-          {phraseLabels.length ? (
-            phraseLabels.map((label) => <span key={label}>{label}</span>)
-          ) : (
-            <span>Awaiting sentence</span>
-          )}
-          <strong>Pattern:</strong>
-          <span>{analysis.pattern}</span>
-          <strong>Confidence:</strong>
-          <span>{analysis.confidence}</span>
-        </div>
-        <WordInspector words={words} />
-        <ConstituencyDiagram tree={analysis.tree} />
-      </section>
+          <div className="practiceProgress" aria-hidden="true">
+            <span style={{ width: `${((stageIndex + (status === "success" ? 1 : 0)) / stages.length) * 100}%` }} />
+          </div>
+
+          <div className="practiceCenter">
+            {perfectStreak !== null && (
+              <div className="perfectStreak" key={perfectStreak}>
+                perfect ✕ {perfectStreak}
+              </div>
+            )}
+            {status === "success" ? (
+              <TokenBuilder className="practiceResult" selectedTokens={revealedTokens} translation={stage.chinese} />
+            ) : (
+              <div className={`practiceInputStage ${status === "error" ? "inputError" : ""}`}>
+                <h1>{stage.chinese}</h1>
+                <p className="practiceTypingHint">在键盘上输入</p>
+                <div className="practiceWordInputs" aria-label="Word input slots">
+                  {stageWords.map((word, index) => (
+                    <div
+                      className={`practiceWordInput ${index === activeInputIndex ? "activeWordInput" : ""}`}
+                      key={`${word}-${index}`}
+                      onClick={() => setActiveInputIndex(index)}
+                    >
+                      <span>{wordInputs[index]}</span>
+                      <i aria-hidden="true" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="practiceShortcuts" aria-label="Keyboard shortcuts">
+            <button type="button" onClick={playPronunciation}>
+              <kbd>Ctrl</kbd><kbd>&apos;</kbd> 播放发音
+            </button>
+            <button type="button" onClick={handleSubmitClick}>
+              <kbd>Enter</kbd> {status === "success" ? "继续" : "提交"}
+            </button>
+            <button type="button" onClick={showAnswer}>
+              <kbd>Ctrl</kbd><kbd>;</kbd> 显示答案
+            </button>
+          </div>
+
+          {showResultModal ? (
+            <div className="resultOverlay" role="dialog" aria-modal="true" aria-label="练习结果">
+              <section className="resultModal">
+                <header className="resultHeader">
+                  <span>🎉</span>
+                  <strong>太强了！</strong>
+                </header>
+                <div className="resultScoreRow">
+                  <div>
+                    <strong className="resultGrade">{grade}</strong>
+                    <span className="resultScore">/{score.toLocaleString()}</span>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>{stats.perfect}</dt>
+                      <dd>完美</dd>
+                    </div>
+                    <div>
+                      <dt>{stats.good}</dt>
+                      <dd>很好</dd>
+                    </div>
+                    <div>
+                      <dt>{stats.skipped}</dt>
+                      <dd>跳过</dd>
+                    </div>
+                  </dl>
+                </div>
+                <div className="resultStatsGrid">
+                  <div>
+                    <span>练习时长</span>
+                    <strong>{duration}</strong>
+                  </div>
+                  <div>
+                    <span>答题数</span>
+                    <strong>{stats.answered}</strong>
+                  </div>
+                  <div>
+                    <span>最大连击 🔥</span>
+                    <strong>{stats.maxStreak}</strong>
+                  </div>
+                </div>
+                <div className="resultMessage">
+                  <strong>刷着刷着就记住了，这就是 gramtree 的学习方式</strong>
+                  <span>每次进入测试都会重新统计本轮数据</span>
+                </div>
+                <footer className="resultActions">
+                  <button type="button" className="secondaryResultButton" onClick={startPractice}>
+                    再来一次
+                  </button>
+                  <button type="button" className="primaryResultButton" onClick={startPractice}>
+                    免费体验
+                  </button>
+                </footer>
+              </section>
+              <div className="snowLayer" aria-hidden="true">
+                {snowflakes.map((s, i) => (
+                  <i key={i} style={{
+                    '--left': `${s.left}%`,
+                    '--size': `${s.size}px`,
+                    '--duration': `${s.duration}s`,
+                    '--delay': `${s.delay}s`,
+                    '--drift': `${s.drift}px`,
+                    '--opacity': s.opacity,
+                  } as CSSProperties} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
     </main>
   );
 }

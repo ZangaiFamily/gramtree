@@ -1,0 +1,393 @@
+{
+  // 页面身份
+  "product": "gramtree",
+  "screenPurpose": "英语句子逐词构建与语法标注练习界面",
+  "overallImpression": {
+    "style": "极简、留白大、教育工具感强，重点突出句子本身",
+    "mood": "轻量、柔和、专注",
+    "visualPriority": [
+      "中央英文句子块",
+      "上方音标标签",
+      "下方词性标签与中文释义",
+      "顶部操作提示",
+      "底部整句中文翻译"
+    ]
+  },
+
+  // 画布与布局
+  "layout": {
+    "canvas": {
+      "background": "纯白或接近纯白",
+      "tailwind": "bg-white",
+      "minHeight": "接近全屏高度",
+      "contentAlignment": "整体内容水平居中，垂直位置略高于页面中心"
+    },
+    "mainContainer": {
+      "width": "约占桌面视口 78%-82%",
+      "maxWidth": "约 1580px",
+      "alignment": "mx-auto",
+      "display": "flex column",
+      "tailwindSuggestion": "mx-auto flex min-h-screen max-w-[1580px] flex-col items-center justify-center px-8"
+    },
+    "verticalRhythm": {
+      "topPromptToSentence": "约 80-100px",
+      "sentenceToTranslation": "约 85-110px",
+      "overallWhiteSpace": "非常充足，避免边框、卡片或复杂背景"
+    }
+  },
+
+  // 顶部提示
+  "instructionText": {
+    "content": "按任意键，开始造这个句子",
+    "position": "页面中央偏上，位于英文句子上方",
+    "font": {
+      "size": "约 28-32px",
+      "weight": "700",
+      "lineHeight": "1.2"
+    },
+    "color": {
+      "sampleApprox": "#B58AFF",
+      "tailwindApprox": "text-violet-400",
+      "alternate": "text-purple-400"
+    },
+    "effects": {
+      "glow": "轻微紫色发光",
+      "tailwindSuggestion": "drop-shadow-[0_0_14px_rgba(167,139,250,0.45)]"
+    }
+  },
+
+  // 句子主区域
+  "sentenceArea": {
+    "content": "I like to eat fresh apples every morning",
+    "layout": {
+      "display": "inline flex row",
+      "alignment": "center",
+      "wrapping": "桌面不换行；移动端可换行并保持每个单词为独立单元",
+      "gap": "视觉上单词块彼此贴近，但不同词组间可有轻微间距"
+    },
+    "wordToken": {
+      "structure": [
+        "top: phonetic transcription",
+        "middle: large English word block",
+        "bottom: part-of-speech pill",
+        "bottom2: Chinese gloss"
+      ],
+      "alignment": "每个词的四层信息垂直居中对齐",
+      "tailwindSuggestion": "flex flex-col items-center"
+    }
+  },
+
+  // 英文单词块
+  "englishWordBlocks": {
+    "font": {
+      "family": "modern sans-serif, rounded but not childish",
+      "size": "约 74-86px",
+      "weight": "700-800",
+      "letterSpacing": "0",
+      "lineHeight": "0.95-1.05"
+    },
+    "textColor": {
+      "sampleApprox": "#101828",
+      "tailwindApprox": "text-slate-950"
+    },
+    "shape": {
+      "borderRadius": "约 8-12px",
+      "paddingX": "按词长动态变化，短词较窄，长词组成连续色块",
+      "paddingY": "约 8-14px"
+    },
+    "behavior": {
+      "activeOrCurrentWord": "单词块带更暖或更亮的背景，暗示当前输入进度",
+      "completedWords": "可通过底部短线或不同背景色表现已完成",
+      "groupedWords": "部分连续词可共享同一背景色，形成语法短语视觉分组"
+    }
+  },
+
+  // 单词逐项描述
+  "tokens": [
+    {
+      "word": "I",
+      "phonetic": "/aɪ/",
+      "partOfSpeech": "代词",
+      "chinese": "我",
+      "blockColor": {
+        "sampleApprox": "#F6D19A",
+        "tailwindApprox": "bg-orange-200",
+        "alternate": "bg-amber-200"
+      },
+      "underlineColor": {
+        "sampleApprox": "#F59E70",
+        "tailwindApprox": "border-orange-300"
+      }
+    },
+    {
+      "word": "like",
+      "phonetic": "/laɪk/",
+      "partOfSpeech": "动词",
+      "chinese": "喜欢",
+      "blockColor": {
+        "sampleApprox": "#F1A7B6",
+        "tailwindApprox": "bg-rose-300",
+        "alternate": "bg-pink-300"
+      },
+      "underlineColor": {
+        "sampleApprox": "#4EBD69",
+        "tailwindApprox": "border-green-500"
+      }
+    },
+    {
+      "word": "to",
+      "phonetic": "/tuː/",
+      "partOfSpeech": "助词",
+      "chinese": "（不定式标记）",
+      "blockColor": {
+        "sampleApprox": "#AFC7F8",
+        "tailwindApprox": "bg-blue-300",
+        "alternate": "bg-indigo-300"
+      },
+      "underlineColor": {
+        "sampleApprox": "#6B7280",
+        "tailwindApprox": "border-slate-500"
+      }
+    },
+    {
+      "word": "eat",
+      "phonetic": "/iːt/",
+      "partOfSpeech": "动词",
+      "chinese": "吃",
+      "blockColor": {
+        "sampleApprox": "#AFC7F8",
+        "tailwindApprox": "bg-blue-300"
+      },
+      "underlineColor": {
+        "sampleApprox": "#58C46B",
+        "tailwindApprox": "border-green-500"
+      }
+    },
+    {
+      "word": "fresh",
+      "phonetic": "/freʃ/",
+      "partOfSpeech": "形容词",
+      "chinese": "新鲜的",
+      "blockColor": {
+        "sampleApprox": "#AFC7F8",
+        "tailwindApprox": "bg-blue-300"
+      },
+      "underlineColor": {
+        "sampleApprox": "#A855F7",
+        "tailwindApprox": "border-purple-500"
+      }
+    },
+    {
+      "word": "apples",
+      "phonetic": "/ˈæplz/",
+      "partOfSpeech": "名词",
+      "chinese": "苹果（复数）",
+      "blockColor": {
+        "sampleApprox": "#AFC7F8",
+        "tailwindApprox": "bg-blue-300"
+      },
+      "underlineColor": {
+        "sampleApprox": "#3B82F6",
+        "tailwindApprox": "border-blue-500"
+      }
+    },
+    {
+      "word": "every",
+      "phonetic": "/ˈevri/",
+      "partOfSpeech": "限定词",
+      "chinese": "每一个",
+      "blockColor": {
+        "sampleApprox": "#AEDCE8",
+        "tailwindApprox": "bg-cyan-200",
+        "alternate": "bg-sky-200"
+      },
+      "underlineColor": {
+        "sampleApprox": "#2EB7A0",
+        "tailwindApprox": "border-teal-500"
+      }
+    },
+    {
+      "word": "morning",
+      "phonetic": "/ˈmɔːrnɪŋ/",
+      "partOfSpeech": "名词",
+      "chinese": "早上",
+      "blockColor": {
+        "sampleApprox": "#AEDCE8",
+        "tailwindApprox": "bg-cyan-200"
+      },
+      "underlineColor": {
+        "sampleApprox": "#3B82F6",
+        "tailwindApprox": "border-blue-500"
+      }
+    }
+  ],
+
+  // 音标标签
+  "phoneticLabels": {
+    "position": "每个单词块正上方",
+    "shape": {
+      "background": "浅灰色胶囊",
+      "borderRadius": "6-8px",
+      "padding": "4px 10px"
+    },
+    "font": {
+      "size": "约 24-28px",
+      "weight": "600",
+      "family": "monospace-like"
+    },
+    "color": {
+      "text": {
+        "sampleApprox": "#6B7280",
+        "tailwindApprox": "text-slate-500"
+      },
+      "background": {
+        "sampleApprox": "#F3F4F6",
+        "tailwindApprox": "bg-slate-100"
+      }
+    },
+    "tailwindSuggestion": "rounded-md bg-slate-100 px-2.5 py-1 font-mono text-2xl font-semibold text-slate-500 shadow-sm"
+  },
+
+  // 词性标签
+  "partOfSpeechPills": {
+    "position": "英文单词块下方，紧贴彩色下划线之后",
+    "shape": {
+      "background": "白色",
+      "border": "浅灰边框",
+      "borderRadius": "999px",
+      "padding": "4px 12px",
+      "shadow": "极轻微投影"
+    },
+    "font": {
+      "size": "约 18-22px",
+      "weight": "700"
+    },
+    "color": {
+      "text": {
+        "sampleApprox": "#4B5563",
+        "tailwindApprox": "text-slate-600"
+      },
+      "border": {
+        "sampleApprox": "#D1D5DB",
+        "tailwindApprox": "border-slate-300"
+      },
+      "background": {
+        "tailwindApprox": "bg-white"
+      }
+    },
+    "tailwindSuggestion": "rounded-full border border-slate-300 bg-white px-3 py-1 text-lg font-bold text-slate-600 shadow-sm"
+  },
+
+  // 中文释义
+  "chineseGloss": {
+    "position": "词性标签下方",
+    "font": {
+      "size": "约 22-26px",
+      "weight": "700"
+    },
+    "color": {
+      "sampleApprox": "#4B5563",
+      "tailwindApprox": "text-slate-600"
+    },
+    "spacing": "与词性标签间距约 14-18px"
+  },
+
+  // 底部整句翻译
+  "sentenceTranslation": {
+    "content": "我喜欢每天早上吃新鲜的苹果。",
+    "position": "英文句子区域下方居中",
+    "font": {
+      "size": "约 40-46px",
+      "weight": "600-700",
+      "lineHeight": "1.25"
+    },
+    "color": {
+      "sampleApprox": "#4B5563",
+      "tailwindApprox": "text-slate-600"
+    },
+    "tailwindSuggestion": "text-center text-4xl font-semibold text-slate-600"
+  },
+
+  // 色彩系统
+  "tailwindColorPalette": {
+    "background": {
+      "page": "white",
+      "softLabel": "slate-100"
+    },
+    "text": {
+      "primaryEnglish": "slate-950",
+      "secondaryChinese": "slate-600",
+      "mutedPhonetic": "slate-500",
+      "instruction": "violet-400"
+    },
+    "wordBackgrounds": {
+      "pronoun": "orange-200",
+      "verbLike": "rose-300",
+      "verbPhrase": "blue-300",
+      "timePhrase": "cyan-200"
+    },
+    "grammarUnderlines": {
+      "pronoun": "orange-300",
+      "verb": "green-500",
+      "particle": "slate-500",
+      "adjective": "purple-500",
+      "noun": "blue-500",
+      "determiner": "teal-500"
+    },
+    "neutralUI": {
+      "pillBorder": "slate-300",
+      "pillShadow": "shadow-sm"
+    }
+  },
+
+  // 组件建议
+  "componentBreakdown": {
+    "SentenceBuilderScreen": "负责页面居中布局、顶部提示、句子区域和翻译",
+    "TokenRow": "负责一整句 token 的横向排列与换行",
+    "WordToken": "单个单词组件，包含音标、英文块、下划线、词性、中文释义",
+    "PhoneticBadge": "音标胶囊标签",
+    "PartOfSpeechPill": "词性胶囊标签",
+    "TranslationLine": "底部整句中文翻译"
+  },
+
+  // 响应式规则
+  "responsiveBehavior": {
+    "desktop": {
+      "sentence": "保持单行展示，英文词块大字号，适合课堂展示或桌面学习",
+      "container": "宽屏居中，不铺满屏幕边缘"
+    },
+    "tablet": {
+      "sentence": "可允许在短语边界处换行",
+      "font": "英文单词字号略降"
+    },
+    "mobile": {
+      "sentence": "token 自动换行，每行保持视觉居中",
+      "font": "英文单词显著缩小，但仍保持主视觉",
+      "translation": "翻译字号降至 24-30px"
+    }
+  },
+
+  // 交互状态推测
+  "interactionStates": {
+    "idle": "顶部显示提示文字，等待用户按键开始",
+    "active": "当前目标单词可使用更明显背景、轻微放大或下划线高亮",
+    "completed": "已完成 token 保留下划线颜色，表示语法角色已识别",
+    "error": "输入错误时可让当前 token 使用 rose/red 边框或轻微抖动，但不破坏整体柔和风格",
+    "success": "整句完成后可让顶部提示淡出，翻译保持可见"
+  },
+
+  // 视觉实现注意事项
+  "implementationNotes": [
+    "不要使用大卡片包住主内容，截图的核心美感来自大面积留白。",
+    "英文单词块必须是主视觉，字号和字重都要足够大。",
+    "颜色要柔和但区分明确，避免高饱和纯色。",
+    "音标标签使用浅灰背景和等宽字体，形成工具感。",
+    "词性标签使用白底胶囊，和英文彩色块形成层级差。",
+    "彩色下划线是语法类别的关键提示，不应省略。",
+    "中文释义和整句翻译使用 slate 系列，不要抢英文主句的注意力。",
+    "移动端优先保证不溢出，可让 token 按词换行。"
+  ],
+
+  // 可交给开发者的简版提示词，markdown 格式内容
+  "developerPromptMarkdown": "## gramtree UI Implementation Prompt\n\nBuild a clean English-learning sentence builder screen inspired by the provided screenshot. The page should feel minimal, spacious, and focused on the sentence itself. Use a white background, center the main content horizontally, and place it slightly above the vertical center.\n\nCreate a large tokenized sentence: `I like to eat fresh apples every morning`. Each token should have four visual layers: a small phonetic badge above, a large colored English word block, a thin grammar-colored underline, then a white rounded part-of-speech pill and a Chinese gloss below.\n\nUse soft Tailwind-like colors: white page background, slate text, violet instruction text, orange for the pronoun, rose for `like`, blue for the verb/object phrase, and cyan for the time phrase. Use green underlines for verbs, blue for nouns, purple for adjectives, teal for determiners, slate for particles, and orange for pronouns.\n\nKeep the English words very large and bold, with dark slate text. Phonetic badges should be light gray with muted slate text and a monospace feel. Part-of-speech labels should be white pills with subtle gray borders and light shadows. The bottom Chinese sentence translation should be centered, large, and slate gray.\n\nAvoid surrounding cards, decorative backgrounds, gradients, or dense controls. The experience should look like an interactive grammar construction tool with generous spacing, clear token groups, and responsive wrapping on smaller screens."
+}
