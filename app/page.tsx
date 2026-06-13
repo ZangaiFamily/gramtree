@@ -692,6 +692,13 @@ export default function Home() {
   }, [stageIndex, isMobile]);
 
   useEffect(() => {
+    if (!isPractice) return;
+    const answer = stage.answer;
+    const timer = window.setTimeout(() => speakWord(answer), 180);
+    return () => window.clearTimeout(timer);
+  }, [isPractice, stageIndex, stage.answer]);
+
+  useEffect(() => {
     if (!autoStartRef.current) return;
     const timer = window.setTimeout(() => {
       if (!autoStartRef.current) return;
@@ -719,7 +726,6 @@ export default function Home() {
 
   function startPractice() {
     if (_audioCtx?.state === "suspended") _audioCtx.resume();
-    const speechRequestId = ++_speechRequestId;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setStats(createPracticeStats(stages.length));
     setShowResultModal(false);
@@ -729,10 +735,6 @@ export default function Home() {
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
-    setTimeout(() => {
-      if (speechRequestId !== _speechRequestId) return;
-      speakWord(stages[0].answer);
-    }, 200);
   }
 
   function handleEnterPractice() {
