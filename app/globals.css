@@ -70,11 +70,17 @@ textarea {
   padding: 0;
 }
 
-.internalLink {
+.homeInternalMenu {
   position: absolute;
   top: 18px;
   right: 20px;
   z-index: 10;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.internalLink {
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   padding: 7px 12px;
@@ -89,6 +95,438 @@ textarea {
 .internalLink:hover {
   color: #334155;
   border-color: #cbd5e1;
+}
+
+.internalToolMenu {
+  position: absolute;
+  top: 56px;
+  right: 14px;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+}
+
+.internalToolMenu a,
+.audioCheckBack {
+  border: 1px solid #dbe3ec;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.internalToolMenu a:hover,
+.audioCheckBack:hover {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.audioCheckPage {
+  height: 100dvh;
+  overflow: hidden;
+  padding: clamp(12px, 2.4vh, 24px) clamp(16px, 3vw, 36px);
+  background:
+    radial-gradient(circle at 12% 12%, rgba(59, 130, 246, 0.12), transparent 34%),
+    linear-gradient(135deg, #f8fafc, #eef4ff);
+  color: #0f172a;
+}
+
+.audioCheckShell {
+  width: min(100%, 680px);
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.4vh, 22px);
+  padding-top: clamp(8px, 2vh, 20px);
+}
+
+.audioStepDots {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.audioStepDots span {
+  width: 36px;
+  height: 6px;
+  border-radius: 999px;
+  background: #dbe3ec;
+  transition: background 0.2s ease;
+}
+
+.audioStepDots span.active {
+  background: #2563eb;
+}
+
+.audioStepDots span.done {
+  background: #93c5fd;
+}
+
+.audioStep {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(14px, 2.6vh, 24px);
+  text-align: center;
+}
+
+.audioStepKicker {
+  margin: 0;
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 1000;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.audioStep h1 {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.audioStepHint {
+  max-width: 28rem;
+  margin: 0;
+  color: #64748b;
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.audioCheckRunButton {
+  min-height: 56px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 1000;
+  box-shadow: 0 16px 38px rgba(37, 99, 235, 0.22);
+}
+
+.audioCheckRunButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.audioTestWord {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.audioTestWord span {
+  border-radius: 8px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-weight: 900;
+}
+
+.audioTestWord strong {
+  color: #0f172a;
+  font-size: clamp(2.6rem, 9vw, 5rem);
+  line-height: 0.95;
+}
+
+.audioCheckMicButton {
+  flex: 0 0 auto;
+}
+
+.audioCheckMessage {
+  margin: 0;
+  color: #64748b;
+  font-size: clamp(1rem, 3vw, 1.2rem);
+  font-weight: 900;
+  text-align: center;
+}
+
+.audioCheckPlayback {
+  width: min(100%, 440px);
+}
+
+.audioStepNav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: clamp(4px, 1.4vh, 12px);
+}
+
+.audioStepNext,
+.audioStepBack {
+  min-height: 52px;
+  padding: 0 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 1000;
+}
+
+.audioStepNext {
+  border: 0;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #ffffff;
+  box-shadow: 0 16px 38px rgba(37, 99, 235, 0.22);
+}
+
+.audioStepNext:disabled {
+  cursor: not-allowed;
+  background: #cbd5e1;
+  color: #f8fafc;
+  box-shadow: none;
+}
+
+.audioStepBack {
+  border: 1px solid #dbe3ec;
+  background: rgba(255, 255, 255, 0.9);
+  color: #475569;
+  font-weight: 900;
+}
+
+.audioStepNav .audioCheckBack {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 24px;
+  font-size: 1rem;
+}
+
+.audioScore {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.audioScore strong {
+  color: #2563eb;
+  font-size: clamp(3rem, 9vw, 4.4rem);
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.audioScore span {
+  color: #94a3b8;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
+  font-weight: 1000;
+}
+
+.audioVerdict {
+  margin: 0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: clamp(0.92rem, 2vw, 1.05rem);
+  font-weight: 1000;
+}
+
+.audioVerdict.ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.audioVerdict.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.audioStageSummary {
+  width: min(100%, 560px);
+  display: grid;
+  gap: clamp(8px, 1.6vh, 12px);
+  text-align: left;
+}
+
+.audioStageCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: clamp(12px, 1.8vh, 16px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.audioStageCard.bad {
+  border-color: #fecaca;
+  background: rgba(254, 242, 242, 0.55);
+}
+
+.audioStageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.audioStageHead strong {
+  color: #0f172a;
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+}
+
+.audioStageHead span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 1000;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.audioStageCard.bad .audioStageHead span {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.audioStageOk {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.audioStageCard ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.audioStageCard li {
+  display: grid;
+  gap: 2px;
+}
+
+.audioStageCard li strong {
+  color: #b91c1c;
+  font-size: 0.92rem;
+}
+
+.audioStageCard li span {
+  color: #7f1d1d;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.micPromptOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  animation: micPromptFade 0.18s ease-out both;
+}
+
+@keyframes micPromptFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.micPromptCard {
+  width: min(100%, 420px);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  border-radius: 24px;
+  padding: clamp(24px, 5vw, 34px);
+  background: #ffffff;
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.22);
+  text-align: center;
+  animation: micPromptPop 0.22s ease-out both;
+}
+
+@keyframes micPromptPop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.micPromptIcon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+}
+
+.micPromptIcon svg {
+  width: 34px;
+  height: 38px;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.micPromptCard h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 4vw, 1.6rem);
+}
+
+.micPromptCard p {
+  margin: 0;
+  max-width: 30rem;
+  color: #64748b;
+  font-size: clamp(0.92rem, 2.4vw, 1rem);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.micPromptActions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.micPromptActions button {
+  flex: 1 1 150px;
+  min-height: 50px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.98rem;
+  font-weight: 1000;
+}
+
+.micPromptGhost {
+  border: 1px solid #dbe3ec;
+  background: rgba(255, 255, 255, 0.9);
+  color: #475569;
+}
+
+.micPromptPrimary {
+  border: 0;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #ffffff;
+  box-shadow: 0 16px 38px rgba(37, 99, 235, 0.24);
 }
 
 .homeBuilderButton {
@@ -349,6 +787,9 @@ textarea {
   color: #ffffff;
   cursor: pointer;
   box-shadow: 0 18px 42px rgba(37, 99, 235, 0.24);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   touch-action: none;
   transition:
     background 0.16s ease,
@@ -415,6 +856,8 @@ textarea {
   color: #475569;
   font-size: clamp(1rem, 4vw, 1.35rem);
   font-weight: 1000;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .readResultBadge.recognized {
@@ -1569,6 +2012,12 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .audioStep {
+    align-content: start;
+    overflow-y: auto;
+    padding: clamp(8px, 2vh, 16px) 0;
+  }
+
   .inputPane {
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -1643,6 +2092,16 @@ textarea:focus {
   .wordInspector {
     gap: 12px;
     padding: 14px 10px;
+  }
+
+  .audioStepNav {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .audioStepNav > * {
+    width: 100%;
+    justify-content: center;
   }
 
   .builderPrompt {
@@ -1811,8 +2270,6 @@ textarea:focus {
   }
 
   .internalLink {
-    top: 10px;
-    right: 10px;
     padding: 6px 10px;
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -435,10 +436,10 @@ function compareSpeechToTarget(transcript: string, target: string): ReadResult {
 }
 
 function resultLabel(result: ReadResult | null) {
-  if (result === "recognized") return "✅ Recognized";
-  if (result === "try-again") return "⚠️ Try again";
-  if (result === "not-matched") return "❌ Not matched";
-  return "Hold to read";
+  if (result === "recognized") return "✅ 识别成功";
+  if (result === "try-again") return "⚠️ 再试一次";
+  if (result === "not-matched") return "❌ 未匹配";
+  return "按住跟读";
 }
 
 function voiceLevelBand(level: number) {
@@ -571,7 +572,7 @@ function TokenBuilder({
   promptText?: string;
 }) {
   return (
-    <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree sentence builder">
+    <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree 造句器">
       <div className="builderPrompt">{promptText}</div>
       <div className="wordStrip homeWordStrip">
         {selectedTokens.map((token, index) => (
@@ -603,9 +604,12 @@ function TokenBuilder({
 }
 
 export default function Home() {
+  const router = useRouter();
   const [selectedSentence, setSelectedSentence] = useState<ClassicSentence>(sentenceLibrary[0]);
   const [isMobile, setIsMobile] = useState(false);
   const [isPractice, setIsPractice] = useState(false);
+  const [showMicPrompt, setShowMicPrompt] = useState(false);
+  const autoStartRef = useRef(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [wordInputs, setWordInputs] = useState<string[]>([]);
   const [activeInputIndex, setActiveInputIndex] = useState(0);
@@ -649,6 +653,11 @@ export default function Home() {
   }, [isRecording]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("practice") === "1") {
+      autoStartRef.current = true;
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
     setSelectedSentence(nextSentence);
     setIsMobile(isMobileUserAgent(window.navigator.userAgent));
@@ -683,6 +692,16 @@ export default function Home() {
   }, [stageIndex, isMobile]);
 
   useEffect(() => {
+    if (!autoStartRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (!autoStartRef.current) return;
+      autoStartRef.current = false;
+      startPractice();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [stages.length, selectedSentence.text, isMobile]);
+
+  useEffect(() => {
     recordingUrlsRef.current = recordingUrls;
   }, [recordingUrls]);
 
@@ -714,6 +733,19 @@ export default function Home() {
       if (speechRequestId !== _speechRequestId) return;
       speakWord(stages[0].answer);
     }, 200);
+  }
+
+  function handleEnterPractice() {
+    if (isMobile) {
+      setShowMicPrompt(true);
+      return;
+    }
+    startPractice();
+  }
+
+  function startPracticeWithoutMicTest() {
+    setShowMicPrompt(false);
+    startPractice();
   }
 
   function openResultModal() {
@@ -935,7 +967,7 @@ export default function Home() {
   async function startReadRecording() {
     if (isRecordingRef.current || status === "success") return;
     if (!navigator.mediaDevices?.getUserMedia) {
-      setRecordingError("Recording is not supported in this browser.");
+      setRecordingError("当前浏览器不支持录音。");
       setReadResult("not-matched");
       return;
     }
@@ -996,7 +1028,7 @@ export default function Home() {
         };
         recognition.onerror = () => {
           if (recordingSessionIdRef.current !== sessionId) return;
-          setRecordingError("Speech recognition failed. Please try again.");
+          setRecordingError("语音识别失败，请再试一次。");
         };
         recognition.onend = () => {
           if (recordingSessionIdRef.current !== sessionId) return;
@@ -1006,7 +1038,7 @@ export default function Home() {
         };
         recognition.start();
       } else {
-        setRecordingError("Speech recognition is not supported in this browser.");
+        setRecordingError("当前浏览器不支持语音识别。");
       }
 
       recorder.start();
@@ -1016,7 +1048,7 @@ export default function Home() {
       isRecordingRef.current = false;
       setIsRecording(false);
       stopVoiceLevelMeter();
-      setRecordingError("Microphone permission is required for read-aloud practice.");
+      setRecordingError("跟读练习需要麦克风权限。");
       setReadResult("not-matched");
     }
   }
@@ -1154,13 +1186,22 @@ export default function Home() {
   return (
     <main className={`gramtreeHome ${isPractice ? "practiceHome" : ""}`}>
       {!isPractice && (<>
-      <Link
-        href="/internal"
-        className="internalLink"
-        aria-label="Open internal grammar diagram page"
-      >
-        Internal
-      </Link>
+      <nav className="homeInternalMenu" aria-label="内部页面">
+        <Link
+          href="/internal"
+          className="internalLink"
+          aria-label="打开内部语法图页面"
+        >
+          内部
+        </Link>
+        <Link
+          href="/internal/audio-check"
+          className="internalLink"
+          aria-label="打开音频能力检测页面"
+        >
+          音频检测
+        </Link>
+      </nav>
 
       <a
         className="githubCorner"
@@ -1177,15 +1218,16 @@ export default function Home() {
       </>)}
 
       {!isPractice ? (
+        <>
         <div
           className="homeBuilderButton"
           role="button"
           tabIndex={0}
-          onClick={startPractice}
+          onClick={handleEnterPractice}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              startPractice();
+              handleEnterPractice();
             }
           }}
         >
@@ -1196,6 +1238,45 @@ export default function Home() {
             promptText={isMobile ? "点击开始读这个句子" : "按鼠标任意键开始造这个句子"}
           />
         </div>
+        {showMicPrompt ? (
+          <div
+            className="micPromptOverlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="麦克风检测"
+            onClick={() => setShowMicPrompt(false)}
+          >
+            <div className="micPromptCard" onClick={(event) => event.stopPropagation()}>
+              <span className="micPromptIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 14.25c1.66 0 3-1.34 3-3V6.75c0-1.66-1.34-3-3-3s-3 1.34-3 3v4.5c0 1.66 1.34 3 3 3Z" />
+                  <path d="M17.5 10.75v.5a5.5 5.5 0 0 1-11 0v-.5" />
+                  <path d="M12 16.75v3.5" />
+                  <path d="M8.75 20.25h6.5" />
+                </svg>
+              </span>
+              <h2>先测一下麦克风？</h2>
+              <p>朗读练习需要使用麦克风。你确认过它是否可用了吗？要不要现在快速测一下？</p>
+              <div className="micPromptActions">
+                <button
+                  type="button"
+                  className="micPromptGhost"
+                  onClick={startPracticeWithoutMicTest}
+                >
+                  不用，直接开始
+                </button>
+                <button
+                  type="button"
+                  className="micPromptPrimary"
+                  onClick={() => router.push("/internal/audio-check?next=practice")}
+                >
+                  先测试麦克风
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        </>
       ) : (
         <section className="practiceShell" aria-label="Keyboard sentence practice">
           <div className="practiceTopBar">
@@ -1251,12 +1332,12 @@ export default function Home() {
                   {resultLabel(readResult)}
                 </div>
                 {recognizedText ? (
-                  <p className="recognizedText">Heard: <strong>{recognizedText}</strong></p>
+                  <p className="recognizedText">听到：<strong>{recognizedText}</strong></p>
                 ) : null}
                 {recordingError ? <p className="recordingError">{recordingError}</p> : null}
                 {recordingUrls[stageIndex] ? (
                   <div className="recordingPlayback">
-                    <span>Your recording</span>
+                    <span>你的录音</span>
                     <audio controls src={recordingUrls[stageIndex] ?? undefined} />
                   </div>
                 ) : null}
