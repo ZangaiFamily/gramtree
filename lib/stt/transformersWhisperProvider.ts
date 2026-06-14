@@ -27,13 +27,18 @@ type WhisperPipeline = (
 ) => Promise<string | WhisperResult>;
 
 type PipelineDevice = "webgpu" | "wasm";
+type PipelineDtype = "q8" | "fp32";
+type PipelineConfig = {
+  device: PipelineDevice;
+  dtype: PipelineDtype;
+};
 
 const modelId = "onnx-community/whisper-tiny.en";
 const isEnglishOnlyModel = modelId.endsWith(".en");
 const fetchTimeoutMs = 30_000;
 const pipelineTimeoutMs = 60_000;
 const transcriptionTimeoutMs = 45_000;
-const cachedPipelines: Partial<Record<PipelineDevice, Promise<WhisperPipeline>>> = {};
+const cachedPipelines: Partial<Record<string, Promise<WhisperPipeline>>> = {};
 let didConfigureTransformers = false;
 
 function createTimeoutError(label: string, timeoutMs: number) {
@@ -91,12 +96,19 @@ function isSafariBrowser() {
   return isAppleVendor && notOtherBrowser;
 }
 
-function getPreferredPipelineDevices(): PipelineDevice[] {
+function getPipelineCacheKey({ device, dtype }: PipelineConfig) {
+  return `${device}:${dtype}`;
+}
+
+function getPreferredPipelineConfigs(): PipelineConfig[] {
   if (typeof navigator === "undefined" || !("gpu" in navigator) || isSafariBrowser()) {
-    return ["wasm"];
+    return [{ device: "wasm", dtype: "fp32" }];
   }
 
-  return ["webgpu", "wasm"];
+  return [
+    { device: "webgpu", dtype: "q8" },
+    { device: "wasm", dtype: "fp32" },
+  ];
 }
 
 function isWebGpuBackendError(error: unknown) {
@@ -108,23 +120,25 @@ function isWebGpuBackendError(error: unknown) {
   );
 }
 
-async function loadPipeline(device: PipelineDevice) {
-  if (!cachedPipelines[device]) {
-    cachedPipelines[device] = withTimeout(
+async function loadPipeline(config: PipelineConfig) {
+  const cacheKey = getPipelineCacheKey(config);
+
+  if (!cachedPipelines[cacheKey]) {
+    cachedPipelines[cacheKey] = withTimeout(
       importTransformers().then(({ pipeline }) =>
         pipeline("automatic-speech-recognition", modelId, {
-          dtype: "q8",
-          device,
+          dtype: config.dtype,
+          device: config.device,
         }),
       ),
       pipelineTimeoutMs,
       "TWP 模型加载",
     ).catch((error) => {
-      delete cachedPipelines[device];
+      delete cachedPipelines[cacheKey];
       throw error;
     });
   }
-  return cachedPipelines[device];
+  return cachedPipelines[cacheKey];
 }
 
 function chunksToWords(chunks: WhisperChunk[] | undefined): SttWord[] {
@@ -152,8 +166,8 @@ export const TransformersWhisperProvider: SttProvider = {
     }
   },
   async preload() {
-    const [preferredDevice] = getPreferredPipelineDevices();
-    await loadPipeline(preferredDevice);
+    const [preferredConfig] = getPreferredPipelineConfigs();
+    await loadPipeline(preferredConfig);
   },
   async transcribe(audio: Blob, options: SttOptions = {}): Promise<SttTranscript> {
     const startedAt = performance.now();
@@ -173,8 +187,8 @@ export const TransformersWhisperProvider: SttProvider = {
       };
 
       let lastError: unknown = null;
-      for (const device of getPreferredPipelineDevices()) {
-        const transcriber = await loadPipeline(device);
+      for (const config of getPreferredPipelineConfigs()) {
+        const transcriber = await loadPipeline(config);
 
         try {
           const result = await withTimeout(
@@ -228,8 +242,8 @@ export const TransformersWhisperProvider: SttProvider = {
           }
 
           lastError = error;
-          if (device === "webgpu" && isWebGpuBackendError(error)) {
-            delete cachedPipelines.webgpu;
+          if (config.device === "webgpu" && isWebGpuBackendError(error)) {
+            delete cachedPipelines[getPipelineCacheKey(config)];
             continue;
           }
 
