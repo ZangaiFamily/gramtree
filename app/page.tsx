@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
-import { createSpeechRecognitionSession, type SpeechRecognitionSession } from "@/lib/stt";
+import {
+  getReadPracticeProvider,
+  getStoredReadPracticeProviderCode,
+  type ReadPracticeProvider,
+  type ReadPracticeProviderCode,
+  type SpeechRecognitionSession,
+} from "@/lib/stt";
 
 type Token = {
   word: string;
@@ -558,6 +564,8 @@ export default function Home() {
   const [recordingUrls, setRecordingUrls] = useState<(string | null)[]>([]);
   const [recordingError, setRecordingError] = useState("");
   const [voiceBand, setVoiceBand] = useState(0);
+  const [isRecognizing, setIsRecognizing] = useState(false);
+  const [readProviderCode, setReadProviderCode] = useState<ReadPracticeProviderCode>("TWP");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
@@ -568,6 +576,7 @@ export default function Home() {
   const smoothedVoiceLevelRef = useRef(0);
   const isRecordingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
+  const shouldEvaluateRecordingRef = useRef(false);
   const readButtonPointerToggleAtRef = useRef(0);
 
   const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
@@ -575,6 +584,8 @@ export default function Home() {
   const stage = stages[stageIndex];
   const stageWords = useMemo(() => stage.answer.split(" "), [stage.answer]);
   const isReadMode = practiceMode === "read";
+  const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
+  const readProviderRef = useRef<ReadPracticeProvider>(readProvider);
   const isSentenceReadStage = stage.tokenIndexes.length > 1;
   const submittedAnswer = wordInputs.join(" ");
   const revealedTokens = useMemo(
@@ -585,6 +596,10 @@ export default function Home() {
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    readProviderRef.current = readProvider;
+  }, [readProvider]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -599,6 +614,7 @@ export default function Home() {
     const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
     setSelectedSentence(nextSentence);
     setIsMobile(isMobileUserAgent(window.navigator.userAgent));
+    setReadProviderCode(getStoredReadPracticeProviderCode());
   }, []);
 
   useEffect(() => {
@@ -628,6 +644,7 @@ export default function Home() {
     setRecognizedText("");
     setReadResult(null);
     setRecordingError("");
+    setIsRecognizing(false);
   }, [stageIndex, practiceMode]);
 
   useEffect(() => {
@@ -636,6 +653,13 @@ export default function Home() {
     const timer = window.setTimeout(() => speakWord(answer), 180);
     return () => window.clearTimeout(timer);
   }, [isPractice, stageIndex, stage.answer]);
+
+  useEffect(() => {
+    if (!isPractice || !isReadMode || !readProvider.preload) return;
+    readProvider.preload().catch(() => {
+      // The actual recording flow will surface the provider error when the user records.
+    });
+  }, [isPractice, isReadMode, readProvider]);
 
   useEffect(() => {
     if (!autoStartModeRef.current) return;
@@ -676,6 +700,7 @@ export default function Home() {
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
+    setIsRecognizing(false);
   }
 
   function enterReadPractice() {
@@ -841,10 +866,12 @@ export default function Home() {
   } = {}) {
     const recorder = mediaRecorderRef.current;
     const recognition = speechRecognitionRef.current;
+    const shouldEvaluate = evaluate && !abortRecognition;
 
     if (abortRecognition || !evaluate) {
       recordingSessionIdRef.current += 1;
     }
+    shouldEvaluateRecordingRef.current = shouldEvaluate;
     isRecordingRef.current = false;
     setIsRecording(false);
     stopVoiceLevelMeter();
@@ -856,7 +883,7 @@ export default function Home() {
         recognition.stop();
       }
       speechRecognitionRef.current = null;
-    } else if (evaluate) {
+    } else if (evaluate && readProviderRef.current.mode === "streaming") {
       applyReadResult("not-matched", "");
     }
 
@@ -867,6 +894,38 @@ export default function Home() {
         recorder.stream.getTracks().forEach((track) => track.stop());
       }
       mediaRecorderRef.current = null;
+    }
+  }
+
+  async function transcribeReadRecording({
+    audio,
+    provider,
+    sessionId,
+    targetText,
+  }: {
+    audio: Blob;
+    provider: ReadPracticeProvider;
+    sessionId: number;
+    targetText: string;
+  }) {
+    if (!provider.transcribeAndScore) return;
+    setIsRecognizing(true);
+    setRecordingError("正在识别录音...");
+
+    try {
+      const result = await provider.transcribeAndScore(audio, targetText);
+      if (recordingSessionIdRef.current !== sessionId) return;
+      setRecordingError("");
+      applyReadResult(result.score.result, result.transcript.text);
+    } catch (error) {
+      if (recordingSessionIdRef.current !== sessionId) return;
+      const message = error instanceof Error ? error.message : "未知错误";
+      setRecordingError(`TWP 识别失败：${message}`);
+      applyReadResult("not-matched", "");
+    } finally {
+      if (recordingSessionIdRef.current === sessionId) {
+        setIsRecognizing(false);
+      }
     }
   }
 
@@ -908,7 +967,7 @@ export default function Home() {
   }
 
   async function startReadRecording() {
-    if (isRecordingRef.current || status === "success") return;
+    if (isRecordingRef.current || isRecognizing || status === "success") return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setRecordingError("当前浏览器不支持录音。");
       setReadResult("not-matched");
@@ -923,12 +982,16 @@ export default function Home() {
     setRecordingError("");
     setRecognizedText("");
     setReadResult(null);
+    setIsRecognizing(false);
     setVoiceBand(0);
     speechTranscriptRef.current = "";
 
     try {
       const sessionId = recordingSessionIdRef.current + 1;
       recordingSessionIdRef.current = sessionId;
+      shouldEvaluateRecordingRef.current = false;
+      const provider = readProviderRef.current;
+      const targetText = stage.answer;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (recordingSessionIdRef.current !== sessionId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -962,13 +1025,18 @@ export default function Home() {
           next[stageIndex] = nextUrl;
           return next;
         });
+        if (shouldEvaluateRecordingRef.current && provider.mode === "post-recording") {
+          transcribeReadRecording({ audio: blob, provider, sessionId, targetText });
+        }
       };
 
       recorder.start();
       isRecordingRef.current = true;
       setIsRecording(true);
 
-      const recognition = createSpeechRecognitionSession({
+      if (provider.mode !== "streaming") return;
+
+      const recognition = provider.createSession?.({
         language: "en",
         onTranscript: (transcript) => {
           if (recordingSessionIdRef.current !== sessionId) return;
@@ -1014,6 +1082,7 @@ export default function Home() {
   }
 
   function toggleReadRecording() {
+    if (isRecognizing) return;
     if (isRecordingRef.current) {
       stopReadRecording();
       return;
@@ -1037,6 +1106,7 @@ export default function Home() {
     setRecognizedText("");
     setReadResult(null);
     setRecordingError("");
+    setIsRecognizing(false);
   }
 
   function skipReadStage() {
@@ -1267,8 +1337,8 @@ export default function Home() {
             )}
             {isReadMode ? (
               <div className={`readPracticeStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
-                <span className="providerBadge srp" title="SpeechRecognitionProvider">
-                  SRP
+                <span className={`providerBadge ${readProvider.badge.toLowerCase()}`} title={readProvider.label}>
+                  {readProvider.badge}
                 </span>
                 <p className="practiceTypingHint">
                   {isSentenceReadStage ? "先点完整句子听标准发音" : "先点单词卡片听标准发音"}
@@ -1297,7 +1367,7 @@ export default function Home() {
                     event.preventDefault();
                     toggleReadRecording();
                   }}
-                  disabled={status === "success"}
+                  disabled={status === "success" || isRecognizing}
                 >
                   <svg className="micIcon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 14.25c1.66 0 3-1.34 3-3V6.75c0-1.66-1.34-3-3-3s-3 1.34-3 3v4.5c0 1.66 1.34 3 3 3Z" />
@@ -1310,7 +1380,7 @@ export default function Home() {
                   </svg>
                 </button>
                 <div className={`readResultBadge ${readResult ?? "idle"}`}>
-                  {resultLabel(readResult)}
+                  {isRecognizing ? "正在识别" : resultLabel(readResult)}
                 </div>
                 {recognizedText ? (
                   <p className="recognizedText">听到：<strong>{recognizedText}</strong></p>
