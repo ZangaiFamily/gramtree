@@ -27,7 +27,7 @@ type WhisperPipeline = (
 ) => Promise<string | WhisperResult>;
 
 type PipelineDevice = "webgpu" | "wasm";
-type PipelineDtype = "q8" | "fp32";
+type PipelineDtype = "q8" | "int8" | "uint8" | "fp32";
 type PipelineConfig = {
   device: PipelineDevice;
   dtype: PipelineDtype;
@@ -115,11 +115,17 @@ function getPipelineCacheKey({ device, dtype }: PipelineConfig) {
 
 function getPreferredPipelineConfigs(): PipelineConfig[] {
   if (typeof navigator === "undefined" || !("gpu" in navigator) || isSafariBrowser()) {
-    return [{ device: "wasm", dtype: "fp32" }];
+    return [
+      { device: "wasm", dtype: "int8" },
+      { device: "wasm", dtype: "uint8" },
+      { device: "wasm", dtype: "fp32" },
+    ];
   }
 
   return [
     { device: "webgpu", dtype: "q8" },
+    { device: "wasm", dtype: "int8" },
+    { device: "wasm", dtype: "uint8" },
     { device: "wasm", dtype: "fp32" },
   ];
 }
@@ -130,6 +136,18 @@ function isWebGpuBackendError(error: unknown) {
     error.message.includes("[webgpu]") ||
     error.message.includes("webgpuInit") ||
     error.message.includes("Unsupported device: \"webgpu\"")
+  );
+}
+
+function isPipelineLoadFallbackError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes("Can't create a session") ||
+    error.message.includes("Missing required scale") ||
+    error.message.includes("no available backend found") ||
+    error.message.includes("Unsupported device") ||
+    error.message.includes("not found") ||
+    error.message.includes("404")
   );
 }
 
@@ -174,7 +192,18 @@ async function transcribe(audioData: Float32Array, options: SttOptions) {
   let lastError: unknown = null;
 
   for (const config of getPreferredPipelineConfigs()) {
-    const transcriber = await loadPipeline(config);
+    let transcriber: WhisperPipeline;
+
+    try {
+      transcriber = await loadPipeline(config);
+    } catch (error) {
+      lastError = error;
+      if (isPipelineLoadFallbackError(error)) {
+        delete cachedPipelines[getPipelineCacheKey(config)];
+        continue;
+      }
+      throw error;
+    }
 
     try {
       const result = await withTimeout(

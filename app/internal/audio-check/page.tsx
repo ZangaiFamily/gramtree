@@ -22,7 +22,7 @@ type TestResult = {
 };
 
 const targetWord = "practice";
-const readRecognitionTimeoutMs = 20_000;
+const readRecognitionTimeoutMs = 90_000;
 
 const stages: { id: string; name: string; testIds: string[] }[] = [
   { id: "stage-audio", name: "第一阶段 · 标准发音", testIds: ["standard-audio"] },

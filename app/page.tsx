@@ -41,7 +41,7 @@ type ClassicSentence = {
 type ReadResult = "recognized" | "try-again" | "not-matched";
 type PracticeMode = "read" | "dictation";
 
-const readRecognitionTimeoutMs = 20_000;
+const readRecognitionTimeoutMs = 90_000;
 
 type PracticeStats = {
   startedAt: number;
