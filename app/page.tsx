@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cancelSpeech, speakText } from "@/lib/speech";
 
 type Token = {
   word: string;
@@ -473,40 +474,8 @@ function formatDuration(milliseconds: number) {
   return `${minutes}分${seconds}秒`;
 }
 
-let _speechRequestId = 0;
-
 function speakWord(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  const requestId = ++_speechRequestId;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = 0.82;
-  const pickVoice = () => {
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return false;
-    const usVoice = voices.find((v) => /en-US/.test(v.lang) && /(Google|Microsoft|Samantha)/.test(v.name))
-      ?? voices.find((v) => /en-US/.test(v.lang));
-    if (usVoice) utterance.voice = usVoice;
-    return true;
-  };
-  const speak = () => {
-    if (requestId !== _speechRequestId) return;
-    window.speechSynthesis.cancel();
-    requestAnimationFrame(() => {
-      if (requestId !== _speechRequestId) return;
-      window.speechSynthesis.speak(utterance);
-    });
-  };
-  if (!pickVoice()) {
-    window.speechSynthesis.addEventListener("voiceschanged", () => {
-      if (requestId !== _speechRequestId) return;
-      pickVoice();
-      speak();
-    }, { once: true });
-  } else {
-    speak();
-  }
+  speakText(text);
 }
 
 let _audioCtx: AudioContext | null = null;
@@ -733,7 +702,7 @@ export default function Home() {
 
   function startPractice(mode: PracticeMode = practiceMode) {
     if (_audioCtx?.state === "suspended") _audioCtx.resume();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    cancelSpeech();
     setPracticeMode(mode);
     setStats(createPracticeStats(stages.length));
     setShowResultModal(false);
@@ -1079,7 +1048,7 @@ export default function Home() {
 
   function exitReadPractice() {
     finishReadRecording({ abortRecognition: true, evaluate: false });
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    cancelSpeech();
     setIsPractice(false);
     setPracticeMode("dictation");
     setStageIndex(0);
@@ -1221,6 +1190,13 @@ export default function Home() {
         >
           音频检测
         </Link>
+        <Link
+          href="/internal/asr-check"
+          className="internalLink"
+          aria-label="打开浏览器端 ASR 检测页面"
+        >
+          ASR 检测
+        </Link>
       </nav>
 
       <a
@@ -1316,6 +1292,9 @@ export default function Home() {
             )}
             {isReadMode ? (
               <div className={`readPracticeStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
+                <span className="providerBadge srp" title="SpeechRecognitionProvider">
+                  SRP
+                </span>
                 <p className="practiceTypingHint">
                   {isSentenceReadStage ? "先点完整句子听标准发音" : "先点单词卡片听标准发音"}
                 </p>

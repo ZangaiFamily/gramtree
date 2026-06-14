@@ -256,6 +256,7 @@ export default function Home() {
       </a>
       <nav className="internalToolMenu" aria-label="Internal tools">
         <Link href="/internal/audio-check">Audio check</Link>
+        <Link href="/internal/asr-check">ASR check</Link>
       </nav>
       <section className="inputPane" aria-labelledby="app-title">
         <div>

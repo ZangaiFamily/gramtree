@@ -203,6 +203,30 @@ textarea {
   line-height: 1.5;
 }
 
+.providerBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+}
+
+.providerBadge.srp {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.providerBadge.twp {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .audioCheckRunButton {
   min-height: 56px;
   padding: 0 28px;

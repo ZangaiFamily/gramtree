@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { speakText } from "@/lib/speech";
 
 type TestStatus = "idle" | "running" | "passed" | "failed" | "blocked";
 
@@ -146,34 +147,30 @@ export default function AudioCheckPage() {
   }
 
   function playStandardAudio() {
-    if (!("speechSynthesis" in window)) {
+    const started = speakText(targetWord, {
+      onStart: () => {
+        updateResult("standard-audio", {
+          status: "passed",
+          points: 25,
+          detail: "标准发音已成功播放。",
+        });
+      },
+      onError: () => {
+        updateResult("standard-audio", {
+          status: "failed",
+          points: 0,
+          detail: "浏览器无法播放标准发音。",
+        });
+      },
+    });
+
+    if (!started) {
       updateResult("standard-audio", {
         status: "failed",
         points: 0,
         detail: "当前浏览器不支持 speechSynthesis。",
       });
-      return;
     }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(targetWord);
-    utterance.lang = "en-US";
-    utterance.rate = 0.82;
-    utterance.onstart = () => {
-      updateResult("standard-audio", {
-        status: "passed",
-        points: 25,
-        detail: "标准发音已成功播放。",
-      });
-    };
-    utterance.onerror = () => {
-      updateResult("standard-audio", {
-        status: "failed",
-        points: 0,
-        detail: "浏览器无法播放标准发音。",
-      });
-    };
-    window.speechSynthesis.speak(utterance);
   }
 
   async function startRecording() {
@@ -342,6 +339,9 @@ export default function AudioCheckPage() {
         {step === 1 ? (
           <section className="audioStep">
             <p className="audioStepKicker">第 2 步 / 共 2 步</p>
+            <span className="providerBadge srp" title="SpeechRecognitionProvider">
+              SRP
+            </span>
             <h1>按住跟读</h1>
             <p className="audioStepHint">
               按住麦克风，跟读 <strong>practice</strong>，读完后松开。
