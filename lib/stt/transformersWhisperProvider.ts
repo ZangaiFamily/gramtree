@@ -106,6 +106,10 @@ function chunksToWords(chunks: WhisperChunk[] | undefined): SttWord[] {
   })).filter((word) => word.text.length > 0);
 }
 
+function isCrossAttentionTimestampError(error: unknown) {
+  return error instanceof Error && error.message.includes("cross attentions");
+}
+
 export const TransformersWhisperProvider: SttProvider = {
   id: "transformers-whisper",
   label: "Transformers.js Whisper Tiny",
@@ -127,19 +131,36 @@ export const TransformersWhisperProvider: SttProvider = {
     const audioUrl = URL.createObjectURL(audio);
 
     try {
-      const generationOptions: Record<string, unknown> = {
-        return_timestamps: options.returnWordTimestamps ? "word" : true,
+      const makeGenerationOptions = (returnWordTimestamps: boolean): Record<string, unknown> => {
+        const generationOptions: Record<string, unknown> = {
+          return_timestamps: returnWordTimestamps ? "word" : true,
+        };
+
+        if (!isEnglishOnlyModel) {
+          generationOptions.language = options.language ?? "en";
+        }
+
+        return generationOptions;
       };
 
-      if (!isEnglishOnlyModel) {
-        generationOptions.language = options.language ?? "en";
-      }
+      let result: string | WhisperResult;
+      try {
+        result = await withTimeout(
+          transcriber(audioUrl, makeGenerationOptions(options.returnWordTimestamps === true)),
+          transcriptionTimeoutMs,
+          "TWP 录音识别",
+        );
+      } catch (error) {
+        if (!options.returnWordTimestamps || !isCrossAttentionTimestampError(error)) {
+          throw error;
+        }
 
-      const result = await withTimeout(
-        transcriber(audioUrl, generationOptions),
-        transcriptionTimeoutMs,
-        "TWP 录音识别",
-      );
+        result = await withTimeout(
+          transcriber(audioUrl, makeGenerationOptions(false)),
+          transcriptionTimeoutMs,
+          "TWP 录音识别",
+        );
+      }
 
       if (typeof result === "string") {
         return {
