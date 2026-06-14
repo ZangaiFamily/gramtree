@@ -36,6 +36,8 @@ type ClassicSentence = {
 type ReadResult = "recognized" | "try-again" | "not-matched";
 type PracticeMode = "read" | "dictation";
 
+const readRecognitionTimeoutMs = 20_000;
+
 type PracticeStats = {
   startedAt: number;
   finishedAt: number | null;
@@ -411,6 +413,21 @@ function resultLabel(result: ReadResult | null) {
   if (result === "try-again") return "⚠️ 再试一次";
   if (result === "not-matched") return "❌ 未匹配";
   return "点击跟读";
+}
+
+function createReadRecognitionTimeout() {
+  return new Error(`TWP 首次加载或识别超时，请检查网络后重试。（${Math.round(readRecognitionTimeoutMs / 1000)} 秒）`);
+}
+
+function withReadRecognitionTimeout<T>(task: Promise<T>) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(createReadRecognitionTimeout()), readRecognitionTimeoutMs);
+  });
+
+  return Promise.race([task, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
 }
 
 function voiceLevelBand(level: number) {
@@ -910,10 +927,10 @@ export default function Home() {
   }) {
     if (!provider.transcribeAndScore) return;
     setIsRecognizing(true);
-    setRecordingError("正在识别录音...");
+    setRecordingError("正在加载 TWP 模型并识别录音...");
 
     try {
-      const result = await provider.transcribeAndScore(audio, targetText);
+      const result = await withReadRecognitionTimeout(provider.transcribeAndScore(audio, targetText));
       if (recordingSessionIdRef.current !== sessionId) return;
       setRecordingError("");
       applyReadResult(result.score.result, result.transcript.text);
