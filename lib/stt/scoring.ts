@@ -1,4 +1,5 @@
 import type { SttTranscript } from "./types";
+import { samePronunciation } from "./pronunciation";
 
 export type ReadScoreResult = "recognized" | "try-again" | "not-matched";
 
@@ -20,10 +21,15 @@ function wordsOf(value: string) {
   return normalized ? normalized.split(" ") : [];
 }
 
-export function scoreReadAttempt(transcript: SttTranscript, targetText: string): ReadScore {
-  const targetWords = wordsOf(targetText);
-  const transcriptWords = wordsOf(transcript.text);
+function findMatchingWordIndex(words: string[], targetWord: string) {
+  return words.findIndex((word) => samePronunciation(word, targetWord));
+}
 
+export function compareSpeechToTarget(transcript: string, target: string): ReadScoreResult {
+  return scoreWords(wordsOf(transcript), wordsOf(target)).result;
+}
+
+function scoreWords(transcriptWords: string[], targetWords: string[]): ReadScore {
   if (!targetWords.length || !transcriptWords.length) {
     return {
       result: "not-matched",
@@ -40,7 +46,7 @@ export function scoreReadAttempt(transcript: SttTranscript, targetText: string):
   const missingWords: string[] = [];
 
   targetWords.forEach((word) => {
-    const matchIndex = unmatchedTranscript.indexOf(word);
+    const matchIndex = findMatchingWordIndex(unmatchedTranscript, word);
     if (matchIndex === -1) {
       missingWords.push(word);
       return;
@@ -64,3 +70,8 @@ export function scoreReadAttempt(transcript: SttTranscript, targetText: string):
   };
 }
 
+export function scoreReadAttempt(transcript: SttTranscript, targetText: string): ReadScore {
+  const targetWords = wordsOf(targetText);
+  const transcriptWords = wordsOf(transcript.text);
+  return scoreWords(transcriptWords, targetWords);
+}

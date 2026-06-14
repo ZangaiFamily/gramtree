@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
 import { enableMobileVConsole } from "@/lib/enableMobileVConsole";
 import {
+  compareSpeechToTarget,
   getReadPracticeProvider,
   getStoredReadPracticeProviderCode,
   TransformersWhisperProvider,
@@ -392,24 +393,6 @@ function normalizeInput(value: string) {
 
 function isMobileUserAgent(userAgent: string) {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(userAgent);
-}
-
-function normalizeSpeechText(value: string) {
-  return value.toLowerCase().replace(/[^a-z'\s]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function compareSpeechToTarget(transcript: string, target: string): ReadResult {
-  const normalizedTranscript = normalizeSpeechText(transcript);
-  const normalizedTarget = normalizeSpeechText(target);
-  if (!normalizedTranscript) return "not-matched";
-  if (normalizedTranscript === normalizedTarget) return "recognized";
-
-  const transcriptWords = normalizedTranscript.split(" ");
-  const targetWords = normalizedTarget.split(" ");
-  if (targetWords.length === 1 && transcriptWords.includes(normalizedTarget)) return "recognized";
-
-  const matchedWords = targetWords.filter((word) => transcriptWords.includes(word)).length;
-  return matchedWords > 0 ? "try-again" : "not-matched";
 }
 
 function resultLabel(result: ReadResult | null) {
