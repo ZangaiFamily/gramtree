@@ -125,6 +125,53 @@ textarea {
   color: #1d4ed8;
 }
 
+.asrPullPanel {
+  position: absolute;
+  top: 104px;
+  right: 14px;
+  z-index: 20;
+  width: min(280px, calc(100vw - 28px));
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.asrPullButton {
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: 0.88rem;
+}
+
+.asrPullResult {
+  width: 100%;
+  margin: 0;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.asrPullResult.loading {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.asrPullResult.success {
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.asrPullResult.error {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 .audioCheckPage {
   height: 100dvh;
   overflow: hidden;

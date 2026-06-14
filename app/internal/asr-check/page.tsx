@@ -17,11 +17,15 @@ type ProviderStatus = {
 
 const targetText = "practice makes perfect";
 
+type PullStatus = "idle" | "loading" | "success" | "error";
+
 export default function AsrCheckPage() {
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>({
     transformers: "checking",
     speechRecognition: "checking",
   });
+  const [pullStatus, setPullStatus] = useState<PullStatus>("idle");
+  const [pullResult, setPullResult] = useState("尚未发起拉取。");
   const [isRecording, setIsRecording] = useState(false);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [message, setMessage] = useState("录一段英文，验证纯前端 Whisper tiny STT。");
@@ -58,6 +62,24 @@ export default function AsrCheckPage() {
       });
     };
   }, []);
+
+  async function pullTransformersWhisper() {
+    if (pullStatus === "loading") return;
+    const startedAt = performance.now();
+    setPullStatus("loading");
+    setPullResult("正在拉取并初始化 TWP 模型资源...");
+
+    try {
+      await TransformersWhisperProvider.preload?.();
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      setPullStatus("success");
+      setPullResult(`拉取完成：${TransformersWhisperProvider.label} 已初始化，用时 ${elapsedMs}ms。`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      setPullStatus("error");
+      setPullResult(`拉取失败：${detail}`);
+    }
+  }
 
   async function startRecording() {
     if (isRecording || isRecognizing) return;
@@ -134,6 +156,18 @@ export default function AsrCheckPage() {
         <Link href="/internal">Internal</Link>
         <Link href="/internal/audio-check">Audio check</Link>
       </nav>
+
+      <div className="asrPullPanel" aria-live="polite">
+        <button
+          type="button"
+          className="audioCheckRunButton asrPullButton"
+          disabled={pullStatus === "loading"}
+          onClick={pullTransformersWhisper}
+        >
+          {pullStatus === "loading" ? "拉取中" : "拉取 TWP"}
+        </button>
+        <p className={`asrPullResult ${pullStatus}`}>{pullResult}</p>
+      </div>
 
       <section className="audioCheckShell">
         <div className="audioStep">
