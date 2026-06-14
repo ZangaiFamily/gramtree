@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { speakText } from "@/lib/speech";
-import { createSpeechRecognitionSession, type SpeechRecognitionSession } from "@/lib/stt";
+import {
+  getReadPracticeProvider,
+  getStoredReadPracticeProviderCode,
+  type ReadPracticeProvider,
+  type SpeechRecognitionSession,
+} from "@/lib/stt";
 
 type TestStatus = "idle" | "running" | "passed" | "failed" | "blocked";
 
@@ -17,6 +22,7 @@ type TestResult = {
 };
 
 const targetWord = "practice";
+const readRecognitionTimeoutMs = 20_000;
 
 const stages: { id: string; name: string; testIds: string[] }[] = [
   { id: "stage-audio", name: "第一阶段 · 标准发音", testIds: ["standard-audio"] },
@@ -40,14 +46,14 @@ const initialResults: TestResult[] = [
     name: "麦克风录音",
     status: "idle",
     points: 0,
-    detail: "按住麦克风按钮跟读单词。",
+    detail: "按下麦克风按钮跟读单词。",
   },
   {
     id: "speech-recognition",
     name: "语音识别",
     status: "idle",
     points: 0,
-    detail: "松开按钮后开始识别。",
+    detail: "再次按下按钮结束录音后开始识别。",
   },
   {
     id: "recording-playback",
@@ -62,23 +68,71 @@ function normalizeSpeech(value: string) {
   return value.toLowerCase().replace(/[^a-z'\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function createReadRecognitionTimeout() {
+  return new Error(`TWP 首次加载或识别超时，请检查网络后重试。（${Math.round(readRecognitionTimeoutMs / 1000)} 秒）`);
+}
+
+function withReadRecognitionTimeout<T>(task: Promise<T>) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(createReadRecognitionTimeout()), readRecognitionTimeoutMs);
+  });
+
+  return Promise.race([task, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 export default function AudioCheckPage() {
   const router = useRouter();
   const [fromPractice, setFromPractice] = useState(false);
   const [step, setStep] = useState(0);
   const [results, setResults] = useState<TestResult[]>(initialResults);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecognizing, setIsRecognizing] = useState(false);
   const [recognizedText, setRecognizedText] = useState("");
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [message, setMessage] = useState("按照手机端跟读练习的流程操作。");
+  const [readProviderCode] = useState(() => getStoredReadPracticeProviderCode());
+  const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<SpeechRecognitionSession | null>(null);
+  const readProviderRef = useRef<ReadPracticeProvider>(readProvider);
+  const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
   const transcriptRef = useRef("");
+  const recordingSessionIdRef = useRef(0);
+  const shouldEvaluateRecordingRef = useRef(false);
+  const isRecordingRef = useRef(false);
+  const readButtonPointerToggleAtRef = useRef(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setFromPractice(params.get("next") === "practice");
+  }, []);
+
+  useEffect(() => {
+    readProviderRef.current = readProvider;
+  }, [readProvider]);
+
+  useEffect(() => {
+    readProvider.preload?.().catch(() => {
+      // The recording flow will surface provider errors when the user records.
+    });
+  }, [readProvider]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+      speechRecognitionRef.current?.abort();
+      setRecordingUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+    };
   }, []);
 
   const problems = results.filter(
@@ -100,7 +154,21 @@ export default function AudioCheckPage() {
     );
   }
 
+  function applyRecognitionResult(transcript: string, matched: boolean) {
+    transcriptRef.current = transcript;
+    setRecognizedText(transcript);
+    updateResult("speech-recognition", {
+      status: matched ? "passed" : "failed",
+      points: matched ? 25 : 0,
+      detail: matched
+        ? `识别到「${transcript}」。`
+        : `听到「${transcript || "（无）"}」，期望是「${targetWord}」。`,
+    });
+    setMessage(matched ? "测试通过，当前浏览器可以进行跟读练习。" : "识别结果不匹配，请再试一次。");
+  }
+
   function restart() {
+    finishRecording({ abortRecognition: true, evaluate: false });
     setRecordingUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return null;
@@ -108,6 +176,7 @@ export default function AudioCheckPage() {
     setResults(initialResults);
     setRecognizedText("");
     transcriptRef.current = "";
+    setIsRecognizing(false);
     setMessage("按照手机端跟读练习的流程操作。");
     setStep(0);
   }
@@ -139,8 +208,85 @@ export default function AudioCheckPage() {
     }
   }
 
+  async function transcribeRecording({
+    audio,
+    provider,
+    sessionId,
+  }: {
+    audio: Blob;
+    provider: ReadPracticeProvider;
+    sessionId: number;
+  }) {
+    if (!provider.transcribeAndScore) return;
+    setIsRecognizing(true);
+    setMessage("正在加载 TWP 模型并识别录音...");
+    updateResult("speech-recognition", {
+      status: "running",
+      points: 0,
+      detail: "正在用 TWP 识别录音。",
+    });
+
+    try {
+      const result = await withReadRecognitionTimeout(provider.transcribeAndScore(audio, targetWord));
+      if (recordingSessionIdRef.current !== sessionId) return;
+      applyRecognitionResult(result.transcript.text, result.score.result === "recognized");
+    } catch (error) {
+      if (recordingSessionIdRef.current !== sessionId) return;
+      const detail = error instanceof Error ? error.message : "未知错误";
+      updateResult("speech-recognition", {
+        status: "failed",
+        points: 0,
+        detail: `TWP 识别失败：${detail}`,
+      });
+      setMessage("语音识别失败，请再试一次。");
+    } finally {
+      if (recordingSessionIdRef.current === sessionId) {
+        setIsRecognizing(false);
+      }
+    }
+  }
+
+  function finishRecording({
+    abortRecognition = false,
+    evaluate = true,
+  }: {
+    abortRecognition?: boolean;
+    evaluate?: boolean;
+  } = {}) {
+    const recorder = recorderRef.current;
+    const recognition = speechRecognitionRef.current;
+    const shouldEvaluate = evaluate && !abortRecognition;
+
+    if (abortRecognition || !evaluate) {
+      recordingSessionIdRef.current += 1;
+    }
+    shouldEvaluateRecordingRef.current = shouldEvaluate;
+    isRecordingRef.current = false;
+    setIsRecording(false);
+
+    if (recognition) {
+      if (abortRecognition || !evaluate) {
+        recognition.abort();
+      } else {
+        recognition.stop();
+      }
+      speechRecognitionRef.current = null;
+    } else if (evaluate && readProviderRef.current.mode === "streaming") {
+      applyRecognitionResult("", false);
+    }
+
+    if (recorder) {
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      } else {
+        recorder.stream.getTracks().forEach((track) => track.stop());
+      }
+      recorderRef.current = null;
+    }
+  }
+
   async function startRecording() {
-    if (isRecording) return;
+    if (isRecordingRef.current || isRecognizing) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       updateResult("microphone-recording", {
         status: "failed",
@@ -149,10 +295,18 @@ export default function AudioCheckPage() {
       });
       return;
     }
+    if (typeof MediaRecorder === "undefined") {
+      updateResult("microphone-recording", {
+        status: "failed",
+        points: 0,
+        detail: "当前浏览器不支持 MediaRecorder 录音。",
+      });
+      return;
+    }
 
     setRecognizedText("");
     transcriptRef.current = "";
-    setMessage("录音中，请跟读：practice");
+    setMessage(`录音中，请跟读：${targetWord}`);
     updateResult("microphone-recording", {
       status: "running",
       points: 0,
@@ -165,7 +319,16 @@ export default function AudioCheckPage() {
     });
 
     try {
+      const sessionId = recordingSessionIdRef.current + 1;
+      recordingSessionIdRef.current = sessionId;
+      shouldEvaluateRecordingRef.current = false;
+      const provider = readProviderRef.current;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (recordingSessionIdRef.current !== sessionId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
       recorderRef.current = recorder;
@@ -176,6 +339,7 @@ export default function AudioCheckPage() {
 
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
+        if (recordingSessionIdRef.current !== sessionId) return;
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         const nextUrl = URL.createObjectURL(blob);
         setRecordingUrl((current) => {
@@ -192,15 +356,26 @@ export default function AudioCheckPage() {
           points: 25,
           detail: "录音可以正常回放。",
         });
+        if (shouldEvaluateRecordingRef.current && provider.mode === "post-recording") {
+          transcribeRecording({ audio: blob, provider, sessionId });
+        }
       };
 
-      const recognition = createSpeechRecognitionSession({
+      recorder.start();
+      isRecordingRef.current = true;
+      setIsRecording(true);
+
+      if (provider.mode !== "streaming") return;
+
+      const recognition = provider.createSession?.({
         language: "en",
         onTranscript: (transcript) => {
+          if (recordingSessionIdRef.current !== sessionId) return;
           transcriptRef.current = transcript;
-          setRecognizedText(transcriptRef.current);
+          setRecognizedText(transcript);
         },
         onError: () => {
+          if (recordingSessionIdRef.current !== sessionId) return;
           updateResult("speech-recognition", {
             status: "failed",
             points: 0,
@@ -208,18 +383,11 @@ export default function AudioCheckPage() {
           });
         },
         onEnd: (transcript) => {
-          transcriptRef.current = transcript.trim();
-          const normalized = normalizeSpeech(transcriptRef.current);
+          if (recordingSessionIdRef.current !== sessionId) return;
+          const normalized = normalizeSpeech(transcript.trim());
           const matched = normalized.split(" ").includes(targetWord);
-          updateResult("speech-recognition", {
-            status: matched ? "passed" : "failed",
-            points: matched ? 25 : 0,
-            detail: matched
-              ? `识别到「${transcriptRef.current}」。`
-              : `听到「${transcriptRef.current || "（无）"}」，期望是「${targetWord}」。`,
-          });
-          setMessage(matched ? "测试通过，当前浏览器可以进行跟读练习。" : "识别结果不匹配，请再试一次。");
-          recognitionRef.current = null;
+          applyRecognitionResult(transcript.trim(), matched);
+          speechRecognitionRef.current = null;
         },
       });
 
@@ -229,22 +397,20 @@ export default function AudioCheckPage() {
           points: 0,
           detail: "当前浏览器不支持 SpeechRecognition。",
         });
-      } else {
-        recognitionRef.current = recognition;
-        try {
-          recognition.start();
-        } catch {
-          recognitionRef.current = null;
-          updateResult("speech-recognition", {
-            status: "failed",
-            points: 0,
-            detail: "当前浏览器无法启动 SpeechRecognition。",
-          });
-        }
+        return;
       }
 
-      recorder.start();
-      setIsRecording(true);
+      speechRecognitionRef.current = recognition;
+      try {
+        recognition.start();
+      } catch {
+        speechRecognitionRef.current = null;
+        updateResult("speech-recognition", {
+          status: "failed",
+          points: 0,
+          detail: "当前浏览器无法启动 SpeechRecognition。",
+        });
+      }
     } catch (error) {
       const errorName = error instanceof DOMException ? error.name : "UnknownError";
       updateResult("microphone-recording", {
@@ -257,10 +423,17 @@ export default function AudioCheckPage() {
   }
 
   function stopRecording() {
-    if (!isRecording) return;
-    setIsRecording(false);
-    recorderRef.current?.stop();
-    recognitionRef.current?.stop();
+    if (!isRecordingRef.current) return;
+    finishRecording({ evaluate: true });
+  }
+
+  function toggleRecording() {
+    if (isRecognizing) return;
+    if (isRecordingRef.current) {
+      stopRecording();
+      return;
+    }
+    startRecording();
   }
 
   return (
@@ -307,24 +480,33 @@ export default function AudioCheckPage() {
         {step === 1 ? (
           <section className="audioStep">
             <p className="audioStepKicker">第 2 步 / 共 2 步</p>
-            <span className="providerBadge srp" title="SpeechRecognitionProvider">
-              SRP
+            <span className={`providerBadge ${readProvider.badge.toLowerCase()}`} title={readProvider.label}>
+              {readProvider.badge}
             </span>
-            <h1>按住跟读</h1>
+            <h1>按下跟读</h1>
             <p className="audioStepHint">
-              按住麦克风，跟读 <strong>practice</strong>，读完后松开。
+              按下麦克风按钮开始跟读 <strong>practice</strong>，读完后再次按下结束。
             </p>
             <button
               type="button"
               className={`holdToReadButton audioCheckMicButton ${isRecording ? "recording" : ""}`}
+              aria-label={isRecording ? "结束录音" : "开始录音"}
+              aria-pressed={isRecording}
+              disabled={isRecognizing}
               onPointerDown={(event) => {
                 event.preventDefault();
-                startRecording();
+                readButtonPointerToggleAtRef.current = Date.now();
+                toggleRecording();
               }}
-              onPointerUp={stopRecording}
-              onPointerCancel={stopRecording}
-              onPointerLeave={stopRecording}
-              aria-label={isRecording ? "松开结束跟读" : "按住开始跟读"}
+              onClick={() => {
+                if (Date.now() - readButtonPointerToggleAtRef.current < 600) return;
+                toggleRecording();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                toggleRecording();
+              }}
             >
               <svg className="micIcon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 14.25c1.66 0 3-1.34 3-3V6.75c0-1.66-1.34-3-3-3s-3 1.34-3 3v4.5c0 1.66 1.34 3 3 3Z" />
@@ -333,7 +515,9 @@ export default function AudioCheckPage() {
                 <path d="M8.75 20.25h6.5" />
               </svg>
             </button>
-            <p className="audioCheckMessage">{message}</p>
+            <p className="audioCheckMessage">
+              {isRecognizing ? "正在识别录音..." : message}
+            </p>
             {recognizedText ? (
               <p className="recognizedText">
                 听到：<strong>{recognizedText}</strong>
@@ -353,8 +537,8 @@ export default function AudioCheckPage() {
                 type="button"
                 className="audioStepNext"
                 onClick={() => setStep(2)}
-                disabled={!recordingTested}
-                title={recordingTested ? undefined : "请先录音并跟读单词。"}
+                disabled={!recordingTested || isRecognizing}
+                title={recordingTested ? undefined : "请先录音并完成识别。"}
               >
                 查看结果
               </button>
