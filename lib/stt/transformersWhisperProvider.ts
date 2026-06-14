@@ -1,6 +1,9 @@
 import type { SttOptions, SttProvider, SttTranscript, SttWord } from "./types";
 
 type TransformersModule = {
+  env: {
+    fetch: typeof fetch;
+  };
   pipeline: (
     task: "automatic-speech-recognition",
     model: string,
@@ -24,20 +27,73 @@ type WhisperPipeline = (
 ) => Promise<string | WhisperResult>;
 
 const modelId = "onnx-community/whisper-tiny.en";
+const isEnglishOnlyModel = modelId.endsWith(".en");
+const fetchTimeoutMs = 30_000;
+const pipelineTimeoutMs = 60_000;
+const transcriptionTimeoutMs = 45_000;
 let cachedPipeline: Promise<WhisperPipeline> | null = null;
+let didConfigureTransformers = false;
+
+function createTimeoutError(label: string, timeoutMs: number) {
+  return new Error(`${label} 超时，请检查网络后重试。（${Math.round(timeoutMs / 1000)} 秒）`);
+}
+
+function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(createTimeoutError(label, timeoutMs)), timeoutMs);
+  });
+
+  return Promise.race([task, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
 
 async function importTransformers(): Promise<TransformersModule> {
-  return import("@huggingface/transformers") as Promise<TransformersModule>;
+  const transformers = await import("@huggingface/transformers") as TransformersModule;
+  if (!didConfigureTransformers && typeof fetch !== "undefined" && typeof AbortController !== "undefined") {
+    const baseFetch = transformers.env.fetch ?? fetch.bind(globalThis);
+    transformers.env.fetch = async (input, init = {}) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), fetchTimeoutMs);
+      const externalSignal = init.signal;
+      const abortFromExternalSignal = () => controller.abort();
+
+      if (externalSignal) {
+        if (externalSignal.aborted) {
+          controller.abort();
+        } else {
+          externalSignal.addEventListener("abort", abortFromExternalSignal, { once: true });
+        }
+      }
+
+      try {
+        return await baseFetch(input, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+        externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+      }
+    };
+    didConfigureTransformers = true;
+  }
+  return transformers;
 }
 
 async function loadPipeline() {
   if (!cachedPipeline) {
-    cachedPipeline = importTransformers().then(({ pipeline }) =>
-      pipeline("automatic-speech-recognition", modelId, {
-        dtype: "q8",
-        device: typeof navigator !== "undefined" && "gpu" in navigator ? "webgpu" : "wasm",
-      }),
-    );
+    cachedPipeline = withTimeout(
+      importTransformers().then(({ pipeline }) =>
+        pipeline("automatic-speech-recognition", modelId, {
+          dtype: "q8",
+          device: typeof navigator !== "undefined" && "gpu" in navigator ? "webgpu" : "wasm",
+        }),
+      ),
+      pipelineTimeoutMs,
+      "TWP 模型加载",
+    ).catch((error) => {
+      cachedPipeline = null;
+      throw error;
+    });
   }
   return cachedPipeline;
 }
@@ -71,10 +127,19 @@ export const TransformersWhisperProvider: SttProvider = {
     const audioUrl = URL.createObjectURL(audio);
 
     try {
-      const result = await transcriber(audioUrl, {
-        language: options.language ?? "en",
+      const generationOptions: Record<string, unknown> = {
         return_timestamps: options.returnWordTimestamps ? "word" : true,
-      });
+      };
+
+      if (!isEnglishOnlyModel) {
+        generationOptions.language = options.language ?? "en";
+      }
+
+      const result = await withTimeout(
+        transcriber(audioUrl, generationOptions),
+        transcriptionTimeoutMs,
+        "TWP 录音识别",
+      );
 
       if (typeof result === "string") {
         return {
