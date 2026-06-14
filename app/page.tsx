@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
+import { enableMobileVConsole } from "@/lib/enableMobileVConsole";
 import {
   getReadPracticeProvider,
   getStoredReadPracticeProviderCode,
+  TransformersWhisperProvider,
   type ReadPracticeProvider,
   type ReadPracticeProviderCode,
   type SpeechRecognitionSession,
 } from "@/lib/stt";
+
+type TwpPullStatus = "idle" | "loading" | "success" | "error";
 
 type Token = {
   word: string;
@@ -583,6 +587,8 @@ export default function Home() {
   const [voiceBand, setVoiceBand] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [readProviderCode, setReadProviderCode] = useState<ReadPracticeProviderCode>("TWP");
+  const [twpPullStatus, setTwpPullStatus] = useState<TwpPullStatus>("idle");
+  const [twpPullResult, setTwpPullResult] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
@@ -633,6 +639,11 @@ export default function Home() {
     setIsMobile(isMobileUserAgent(window.navigator.userAgent));
     setReadProviderCode(getStoredReadPracticeProviderCode());
   }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    void enableMobileVConsole();
+  }, [isMobile]);
 
   useEffect(() => {
     setIsPractice(false);
@@ -1223,6 +1234,24 @@ export default function Home() {
   const duration = formatDuration(finishedAt - stats.startedAt);
   const grade = score >= 8500 ? "S" : score >= 7000 ? "A" : score >= 5200 ? "B" : "C";
 
+  async function pullTransformersWhisper() {
+    if (twpPullStatus === "loading") return;
+    const startedAt = performance.now();
+    setTwpPullStatus("loading");
+    setTwpPullResult("正在拉取并初始化 TWP 模型资源...");
+
+    try {
+      await TransformersWhisperProvider.preload?.();
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      setTwpPullStatus("success");
+      setTwpPullResult(`拉取完成：${TransformersWhisperProvider.label} 已初始化，用时 ${elapsedMs}ms。`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      setTwpPullStatus("error");
+      setTwpPullResult(`拉取失败：${detail}`);
+    }
+  }
+
   const snowflakes = useMemo(() => {
     return Array.from({ length: 45 }).map((_, i) => ({
       left: (i * 2.3 + 1.7 * (i % 7)) % 100,
@@ -1252,6 +1281,19 @@ export default function Home() {
         >
           音频检测
         </Link>
+        <div className="homeTwpPull" aria-live="polite">
+          <button
+            type="button"
+            className="internalLink"
+            disabled={twpPullStatus === "loading"}
+            onClick={pullTransformersWhisper}
+          >
+            {twpPullStatus === "loading" ? "拉取中" : "拉取 TWP"}
+          </button>
+          {twpPullResult ? (
+            <p className={`asrPullResult ${twpPullStatus}`}>{twpPullResult}</p>
+          ) : null}
+        </div>
         <Link
           href="/internal/asr-check"
           className="internalLink"

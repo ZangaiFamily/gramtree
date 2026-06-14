@@ -78,6 +78,14 @@ textarea {
   display: grid;
   gap: 8px;
   justify-items: end;
+  width: min(280px, calc(100vw - 40px));
+}
+
+.homeTwpPull {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  width: 100%;
 }
 
 .internalLink {
@@ -95,6 +103,24 @@ textarea {
 .internalLink:hover {
   color: #334155;
   border-color: #cbd5e1;
+}
+
+.homeInternalMenu button.internalLink {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: inherit;
+}
+
+.homeInternalMenu button.internalLink:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.homeTwpPull .asrPullResult {
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .internalToolMenu {
