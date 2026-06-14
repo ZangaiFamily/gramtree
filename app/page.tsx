@@ -439,7 +439,7 @@ function resultLabel(result: ReadResult | null) {
   if (result === "recognized") return "✅ 识别成功";
   if (result === "try-again") return "⚠️ 再试一次";
   if (result === "not-matched") return "❌ 未匹配";
-  return "按住跟读";
+  return "点击跟读";
 }
 
 function voiceLevelBand(level: number) {
@@ -1060,6 +1060,14 @@ export default function Home() {
     finishReadRecording({ evaluate: true });
   }
 
+  function toggleReadRecording() {
+    if (isRecordingRef.current) {
+      stopReadRecording();
+      return;
+    }
+    startReadRecording();
+  }
+
   function exitMobileReadPractice() {
     finishReadRecording({ abortRecognition: true, evaluate: false });
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
@@ -1283,7 +1291,7 @@ export default function Home() {
         <section className="practiceShell" aria-label="Keyboard sentence practice">
           <div className="practiceTopBar">
             <strong>
-              {isMobile ? "点击单词听发音，按住按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
+              {isMobile ? "点击单词听发音，按下按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
             </strong>
             <span>{score}</span>
           </div>
@@ -1310,14 +1318,17 @@ export default function Home() {
                 <button
                   type="button"
                   className={`holdToReadButton ${isRecording ? "recording" : ""}`}
-                  aria-label={isRecording ? "松开结束录音" : "按住开始录音"}
+                  aria-label={isRecording ? "结束录音" : "开始录音"}
+                  aria-pressed={isRecording}
                   onPointerDown={(event) => {
                     event.preventDefault();
-                    startReadRecording();
+                    toggleReadRecording();
                   }}
-                  onPointerUp={stopReadRecording}
-                  onPointerCancel={stopReadRecording}
-                  onPointerLeave={stopReadRecording}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    toggleReadRecording();
+                  }}
                   disabled={status === "success"}
                 >
                   <svg className="micIcon" viewBox="0 0 24 24" aria-hidden="true">
