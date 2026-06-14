@@ -26,12 +26,14 @@ type WhisperPipeline = (
   options?: Record<string, unknown>,
 ) => Promise<string | WhisperResult>;
 
+type PipelineDevice = "webgpu" | "wasm";
+
 const modelId = "onnx-community/whisper-tiny.en";
 const isEnglishOnlyModel = modelId.endsWith(".en");
 const fetchTimeoutMs = 30_000;
 const pipelineTimeoutMs = 60_000;
 const transcriptionTimeoutMs = 45_000;
-let cachedPipeline: Promise<WhisperPipeline> | null = null;
+const cachedPipelines: Partial<Record<PipelineDevice, Promise<WhisperPipeline>>> = {};
 let didConfigureTransformers = false;
 
 function createTimeoutError(label: string, timeoutMs: number) {
@@ -79,23 +81,50 @@ async function importTransformers(): Promise<TransformersModule> {
   return transformers;
 }
 
-async function loadPipeline() {
-  if (!cachedPipeline) {
-    cachedPipeline = withTimeout(
+function isSafariBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent;
+  const vendor = navigator.vendor || "";
+  const isAppleVendor = vendor.includes("Apple");
+  const notOtherBrowser = !userAgent.match(/CriOS|FxiOS|EdgiOS|OPiOS|mercury|brave/i) && !userAgent.includes("Chrome") && !userAgent.includes("Android");
+
+  return isAppleVendor && notOtherBrowser;
+}
+
+function getPreferredPipelineDevices(): PipelineDevice[] {
+  if (typeof navigator === "undefined" || !("gpu" in navigator) || isSafariBrowser()) {
+    return ["wasm"];
+  }
+
+  return ["webgpu", "wasm"];
+}
+
+function isWebGpuBackendError(error: unknown) {
+  return error instanceof Error && (
+    error.message.includes("no available backend found") ||
+    error.message.includes("[webgpu]") ||
+    error.message.includes("webgpuInit") ||
+    error.message.includes("Unsupported device: \"webgpu\"")
+  );
+}
+
+async function loadPipeline(device: PipelineDevice) {
+  if (!cachedPipelines[device]) {
+    cachedPipelines[device] = withTimeout(
       importTransformers().then(({ pipeline }) =>
         pipeline("automatic-speech-recognition", modelId, {
           dtype: "q8",
-          device: typeof navigator !== "undefined" && "gpu" in navigator ? "webgpu" : "wasm",
+          device,
         }),
       ),
       pipelineTimeoutMs,
       "TWP 模型加载",
     ).catch((error) => {
-      cachedPipeline = null;
+      delete cachedPipelines[device];
       throw error;
     });
   }
-  return cachedPipeline;
+  return cachedPipelines[device];
 }
 
 function chunksToWords(chunks: WhisperChunk[] | undefined): SttWord[] {
@@ -123,11 +152,11 @@ export const TransformersWhisperProvider: SttProvider = {
     }
   },
   async preload() {
-    await loadPipeline();
+    const [preferredDevice] = getPreferredPipelineDevices();
+    await loadPipeline(preferredDevice);
   },
   async transcribe(audio: Blob, options: SttOptions = {}): Promise<SttTranscript> {
     const startedAt = performance.now();
-    const transcriber = await loadPipeline();
     const audioUrl = URL.createObjectURL(audio);
 
     try {
@@ -143,42 +172,72 @@ export const TransformersWhisperProvider: SttProvider = {
         return generationOptions;
       };
 
-      let result: string | WhisperResult;
-      try {
-        result = await withTimeout(
-          transcriber(audioUrl, makeGenerationOptions(options.returnWordTimestamps === true)),
-          transcriptionTimeoutMs,
-          "TWP 录音识别",
-        );
-      } catch (error) {
-        if (!options.returnWordTimestamps || !isCrossAttentionTimestampError(error)) {
+      let lastError: unknown = null;
+      for (const device of getPreferredPipelineDevices()) {
+        const transcriber = await loadPipeline(device);
+
+        try {
+          const result = await withTimeout(
+            transcriber(audioUrl, makeGenerationOptions(options.returnWordTimestamps === true)),
+            transcriptionTimeoutMs,
+            "TWP 录音识别",
+          );
+
+          if (typeof result === "string") {
+            return {
+              text: result,
+              words: result.split(/\s+/).map((word) => ({ text: word, start: null, end: null })),
+              provider: "transformers-whisper",
+              model: modelId,
+              elapsedMs: performance.now() - startedAt,
+            };
+          }
+
+          return {
+            text: result.text?.trim() ?? "",
+            words: chunksToWords(result.chunks),
+            provider: "transformers-whisper",
+            model: modelId,
+            elapsedMs: performance.now() - startedAt,
+          };
+        } catch (error) {
+          if (options.returnWordTimestamps && isCrossAttentionTimestampError(error)) {
+            const result = await withTimeout(
+              transcriber(audioUrl, makeGenerationOptions(false)),
+              transcriptionTimeoutMs,
+              "TWP 录音识别",
+            );
+
+            if (typeof result === "string") {
+              return {
+                text: result,
+                words: result.split(/\s+/).map((word) => ({ text: word, start: null, end: null })),
+                provider: "transformers-whisper",
+                model: modelId,
+                elapsedMs: performance.now() - startedAt,
+              };
+            }
+
+            return {
+              text: result.text?.trim() ?? "",
+              words: chunksToWords(result.chunks),
+              provider: "transformers-whisper",
+              model: modelId,
+              elapsedMs: performance.now() - startedAt,
+            };
+          }
+
+          lastError = error;
+          if (device === "webgpu" && isWebGpuBackendError(error)) {
+            delete cachedPipelines.webgpu;
+            continue;
+          }
+
           throw error;
         }
-
-        result = await withTimeout(
-          transcriber(audioUrl, makeGenerationOptions(false)),
-          transcriptionTimeoutMs,
-          "TWP 录音识别",
-        );
       }
 
-      if (typeof result === "string") {
-        return {
-          text: result,
-          words: result.split(/\s+/).map((word) => ({ text: word, start: null, end: null })),
-          provider: "transformers-whisper",
-          model: modelId,
-          elapsedMs: performance.now() - startedAt,
-        };
-      }
-
-      return {
-        text: result.text?.trim() ?? "",
-        words: chunksToWords(result.chunks),
-        provider: "transformers-whisper",
-        model: modelId,
-        elapsedMs: performance.now() - startedAt,
-      };
+      throw lastError ?? new Error("TWP 录音识别失败。");
     } finally {
       URL.revokeObjectURL(audioUrl);
     }
