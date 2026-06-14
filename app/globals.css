@@ -529,16 +529,74 @@ textarea {
   box-shadow: 0 16px 38px rgba(37, 99, 235, 0.24);
 }
 
-.homeBuilderButton {
+.homeStartPanel {
   width: min(100%, 1680px);
   display: flex;
+  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  cursor: pointer;
+  gap: clamp(24px, 4vh, 42px);
 }
 
-.homeBuilderButton:focus-visible {
-  outline: 3px solid rgba(167, 139, 250, 0.45);
-  outline-offset: 8px;
+.homePracticeModes {
+  width: min(100%, 680px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.homePracticeMode {
+  min-height: 78px;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  padding: 14px 18px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.homePracticeMode:hover,
+.homePracticeMode:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 20px 42px rgba(37, 99, 235, 0.14);
+  transform: translateY(-2px);
+}
+
+.homePracticeMode:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 3px;
+}
+
+.homePracticeMode:active {
+  transform: translateY(1px);
+}
+
+.homePracticeMode strong {
+  font-size: 1.08rem;
+  font-weight: 1000;
+}
+
+.homePracticeMode span {
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.primaryMode {
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
 
 .practiceShell {
@@ -719,7 +777,7 @@ textarea {
   background: #ef4444;
 }
 
-.mobileReadStage {
+.readPracticeStage {
   width: min(92vw, 720px);
   display: flex;
   align-items: center;
@@ -730,7 +788,7 @@ textarea {
   text-align: center;
 }
 
-.mobileReadToken {
+.readPracticeToken {
   width: auto;
   min-height: 0;
   border: 0;
@@ -738,25 +796,25 @@ textarea {
   padding: 0;
 }
 
-.mobileReadToken .builderPrompt {
+.readPracticeToken .builderPrompt {
   display: none;
 }
 
-.mobileReadToken .homeWordStrip {
+.readPracticeToken .homeWordStrip {
   row-gap: 12px;
 }
 
-.mobileReadToken .homeBuilderToken {
+.readPracticeToken .homeBuilderToken {
   max-width: min(82vw, 30rem);
 }
 
-.mobileReadToken .homeWordBlock {
+.readPracticeToken .homeWordBlock {
   inline-size: min(82vw, 30rem);
   max-inline-size: 100%;
   container-type: inline-size;
 }
 
-.mobileReadToken .homeWordText {
+.readPracticeToken .homeWordText {
   max-inline-size: 100%;
   font-size: clamp(2.25rem, calc(80cqi / max(var(--word-length, 6), 6)), 5.25rem);
   line-height: 0.95;
@@ -764,14 +822,14 @@ textarea {
   white-space: nowrap;
 }
 
-.mobileReadToken .homeSentenceTranslation {
+.readPracticeToken .homeSentenceTranslation {
   margin-top: 0;
   color: #64748b;
   font-size: clamp(1.1rem, 4.8vw, 1.7rem);
   font-weight: 900;
 }
 
-.mobileReadToken .homeChineseGloss {
+.readPracticeToken .homeChineseGloss {
   display: none;
 }
 
@@ -907,38 +965,38 @@ textarea {
   transform: none;
 }
 
-.mobileReadShortcuts {
+.readPracticeShortcuts {
   gap: 12px;
 }
 
-.mobileSentenceReadToken {
+.sentenceReadToken {
   width: min(92vw, 34rem);
   gap: 8px;
 }
 
-.mobileSentenceReadToken .homeWordStrip {
+.sentenceReadToken .homeWordStrip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(5.25rem, 1fr));
   gap: 6px;
   align-items: stretch;
 }
 
-.mobileSentenceReadToken .homeBuilderToken {
+.sentenceReadToken .homeBuilderToken {
   max-width: none;
 }
 
-.mobileSentenceReadToken .homePhoneticBadge,
-.mobileSentenceReadToken .homePartOfSpeechPill,
-.mobileSentenceReadToken .homeChineseGloss {
+.sentenceReadToken .homePhoneticBadge,
+.sentenceReadToken .homePartOfSpeechPill,
+.sentenceReadToken .homeChineseGloss {
   display: none;
 }
 
-.mobileSentenceReadToken .wordBubbleStack,
-.mobileSentenceReadToken .homeWordBlock {
+.sentenceReadToken .wordBubbleStack,
+.sentenceReadToken .homeWordBlock {
   width: 100%;
 }
 
-.mobileSentenceReadToken .homeWordBlock {
+.sentenceReadToken .homeWordBlock {
   min-width: 0;
   min-height: clamp(3rem, 8vh, 4.4rem);
   inline-size: auto;
@@ -946,15 +1004,15 @@ textarea {
   border-radius: 0.85rem;
 }
 
-.mobileSentenceReadToken .homeWordText {
+.sentenceReadToken .homeWordText {
   font-size: clamp(1.35rem, calc(48cqi / max(var(--word-length, 5), 5)), 2.45rem);
 }
 
-.mobileSentenceReadToken .grammarUnderline {
+.sentenceReadToken .grammarUnderline {
   height: 0.25rem;
 }
 
-.mobileSentenceReadToken .homeSentenceTranslation {
+.sentenceReadToken .homeSentenceTranslation {
   margin-top: 0.15rem;
   font-size: clamp(1rem, 3.8vw, 1.35rem);
 }
@@ -2162,6 +2220,30 @@ textarea:focus {
     padding: 48px 12px 20px;
   }
 
+  .homeStartPanel {
+    gap: 20px;
+  }
+
+  .homePracticeModes {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 0 8px;
+  }
+
+  .homePracticeMode {
+    min-height: 66px;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .homePracticeMode strong {
+    font-size: 1rem;
+  }
+
+  .homePracticeMode span {
+    font-size: 0.84rem;
+  }
+
   .practiceHome {
     padding: 0;
   }
@@ -2191,11 +2273,11 @@ textarea:focus {
     padding: 8px 10px 12px;
   }
 
-  .mobileReadStage {
+  .readPracticeStage {
     gap: 8px;
   }
 
-  .mobileReadStage .practiceTypingHint {
+  .readPracticeStage .practiceTypingHint {
     font-size: clamp(1rem, 4vw, 1.25rem);
   }
 

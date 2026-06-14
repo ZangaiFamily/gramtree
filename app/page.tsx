@@ -26,6 +26,7 @@ type ClassicSentence = {
 };
 
 type ReadResult = "recognized" | "try-again" | "not-matched";
+type PracticeMode = "read" | "dictation";
 
 type SpeechRecognitionAlternativeLike = {
   transcript: string;
@@ -608,8 +609,9 @@ export default function Home() {
   const [selectedSentence, setSelectedSentence] = useState<ClassicSentence>(sentenceLibrary[0]);
   const [isMobile, setIsMobile] = useState(false);
   const [isPractice, setIsPractice] = useState(false);
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>("dictation");
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const autoStartRef = useRef(false);
+  const autoStartModeRef = useRef<PracticeMode | null>(null);
   const [stageIndex, setStageIndex] = useState(0);
   const [wordInputs, setWordInputs] = useState<string[]>([]);
   const [activeInputIndex, setActiveInputIndex] = useState(0);
@@ -636,12 +638,11 @@ export default function Home() {
   const recordingSessionIdRef = useRef(0);
 
   const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
-  const desktopStages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
-  const mobileStages = desktopStages;
-  const stages = isMobile ? mobileStages : desktopStages;
+  const stages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
   const stage = stages[stageIndex];
   const stageWords = useMemo(() => stage.answer.split(" "), [stage.answer]);
-  const isSentenceReadStage = isMobile && stage.tokenIndexes.length > 1;
+  const isReadMode = practiceMode === "read";
+  const isSentenceReadStage = stage.tokenIndexes.length > 1;
   const submittedAnswer = wordInputs.join(" ");
   const revealedTokens = useMemo(
     () => stage.tokenIndexes.map((index) => tokens[index]),
@@ -654,8 +655,12 @@ export default function Home() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("practice") === "1") {
-      autoStartRef.current = true;
+    const requestedPractice = params.get("practice");
+    if (requestedPractice === "read" || requestedPractice === "1") {
+      autoStartModeRef.current = "read";
+      window.history.replaceState(null, "", window.location.pathname);
+    } else if (requestedPractice === "dictation") {
+      autoStartModeRef.current = "dictation";
       window.history.replaceState(null, "", window.location.pathname);
     }
     const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
@@ -665,6 +670,7 @@ export default function Home() {
 
   useEffect(() => {
     setIsPractice(false);
+    setPracticeMode("dictation");
     setStageIndex(0);
     setWordInputs([]);
     setActiveInputIndex(0);
@@ -682,14 +688,14 @@ export default function Home() {
       });
       return Array.from({ length: stages.length }, () => null);
     });
-  }, [stages.length, selectedSentence.text, isMobile]);
+  }, [stages.length, selectedSentence.text]);
 
   useEffect(() => {
     finishReadRecording({ abortRecognition: true, evaluate: false });
     setRecognizedText("");
     setReadResult(null);
     setRecordingError("");
-  }, [stageIndex, isMobile]);
+  }, [stageIndex, practiceMode]);
 
   useEffect(() => {
     if (!isPractice) return;
@@ -699,14 +705,15 @@ export default function Home() {
   }, [isPractice, stageIndex, stage.answer]);
 
   useEffect(() => {
-    if (!autoStartRef.current) return;
+    if (!autoStartModeRef.current) return;
     const timer = window.setTimeout(() => {
-      if (!autoStartRef.current) return;
-      autoStartRef.current = false;
-      startPractice();
+      const mode = autoStartModeRef.current;
+      if (!mode) return;
+      autoStartModeRef.current = null;
+      startPractice(mode);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [stages.length, selectedSentence.text, isMobile]);
+  }, [stages.length, selectedSentence.text]);
 
   useEffect(() => {
     recordingUrlsRef.current = recordingUrls;
@@ -724,9 +731,10 @@ export default function Home() {
     };
   }, []);
 
-  function startPractice() {
+  function startPractice(mode: PracticeMode = practiceMode) {
     if (_audioCtx?.state === "suspended") _audioCtx.resume();
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setPracticeMode(mode);
     setStats(createPracticeStats(stages.length));
     setShowResultModal(false);
     setIsPractice(true);
@@ -737,17 +745,18 @@ export default function Home() {
     setScore(0);
   }
 
-  function handleEnterPractice() {
-    if (isMobile) {
-      setShowMicPrompt(true);
-      return;
-    }
-    startPractice();
+  function enterReadPractice() {
+    setPracticeMode("read");
+    setShowMicPrompt(true);
+  }
+
+  function enterDictationPractice() {
+    startPractice("dictation");
   }
 
   function startPracticeWithoutMicTest() {
     setShowMicPrompt(false);
-    startPractice();
+    startPractice("read");
   }
 
   function openResultModal() {
@@ -1068,10 +1077,11 @@ export default function Home() {
     startReadRecording();
   }
 
-  function exitMobileReadPractice() {
+  function exitReadPractice() {
     finishReadRecording({ abortRecognition: true, evaluate: false });
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setIsPractice(false);
+    setPracticeMode("dictation");
     setStageIndex(0);
     setWordInputs([]);
     setActiveInputIndex(0);
@@ -1105,7 +1115,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!isPractice || isMobile) return;
+    if (!isPractice || practiceMode !== "dictation") return;
 
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key === "'") {
@@ -1176,7 +1186,7 @@ export default function Home() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeInputIndex, isPractice, showResultModal, stage.answer, stageIndex, stageWords, stats.attemptsByStage, stats.revealedByStage, status, submittedAnswer, wordInputs]);
+  }, [activeInputIndex, isPractice, practiceMode, showResultModal, stage.answer, stageIndex, stageWords, stats.attemptsByStage, stats.revealedByStage, status, submittedAnswer, wordInputs]);
 
   const finishedAt = stats.finishedAt ?? Date.now();
   const duration = formatDuration(finishedAt - stats.startedAt);
@@ -1229,24 +1239,23 @@ export default function Home() {
 
       {!isPractice ? (
         <>
-        <div
-          className="homeBuilderButton"
-          role="button"
-          tabIndex={0}
-          onClick={handleEnterPractice}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              handleEnterPractice();
-            }
-          }}
-        >
+        <div className="homeStartPanel">
           <TokenBuilder
             selectedTokens={tokens}
             translation={selectedSentence.chinese}
             enableWordSpeech={false}
-            promptText={isMobile ? "点击开始读这个句子" : "按鼠标任意键开始造这个句子"}
+            promptText="选择练习模式"
           />
+          <div className="homePracticeModes" aria-label="练习模式">
+            <button type="button" className="homePracticeMode primaryMode" onClick={enterReadPractice}>
+              <strong>听读</strong>
+              <span>听标准发音，再按下麦克风跟读</span>
+            </button>
+            <button type="button" className="homePracticeMode" onClick={enterDictationPractice}>
+              <strong>听写</strong>
+              <span>{isMobile ? "看中文提示输入英文" : "用键盘输入英文，随时播放发音"}</span>
+            </button>
+          </div>
         </div>
         {showMicPrompt ? (
           <div
@@ -1288,10 +1297,10 @@ export default function Home() {
         ) : null}
         </>
       ) : (
-        <section className="practiceShell" aria-label="Keyboard sentence practice">
+        <section className="practiceShell" aria-label={isReadMode ? "Read-aloud practice" : "Keyboard sentence practice"}>
           <div className="practiceTopBar">
             <strong>
-              {isMobile ? "点击单词听发音，按下按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
+              {isReadMode ? "点击单词听发音，按下按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
             </strong>
             <span>{score}</span>
           </div>
@@ -1305,13 +1314,13 @@ export default function Home() {
                 perfect ✕ {perfectStreak}
               </div>
             )}
-            {isMobile ? (
-              <div className={`mobileReadStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
+            {isReadMode ? (
+              <div className={`readPracticeStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
                 <p className="practiceTypingHint">
                   {isSentenceReadStage ? "先点完整句子听标准发音" : "先点单词卡片听标准发音"}
                 </p>
                 <TokenBuilder
-                  className={`mobileReadToken ${isSentenceReadStage ? "mobileSentenceReadToken" : ""}`}
+                  className={`readPracticeToken ${isSentenceReadStage ? "sentenceReadToken" : ""}`}
                   selectedTokens={revealedTokens}
                   translation={stage.chinese}
                 />
@@ -1377,9 +1386,9 @@ export default function Home() {
             )}
           </div>
 
-          {isMobile ? (
-            <div className="practiceShortcuts mobileReadShortcuts" aria-label="Read-aloud controls">
-              <button type="button" onClick={exitMobileReadPractice}>
+          {isReadMode ? (
+            <div className="practiceShortcuts readPracticeShortcuts" aria-label="Read-aloud controls">
+              <button type="button" onClick={exitReadPractice}>
                 返回
               </button>
               <button type="button" onClick={playPronunciation}>
@@ -1452,10 +1461,10 @@ export default function Home() {
                   <span>每次进入测试都会重新统计本轮数据</span>
                 </div>
                 <footer className="resultActions">
-                  <button type="button" className="secondaryResultButton" onClick={startPractice}>
+                  <button type="button" className="secondaryResultButton" onClick={() => startPractice()}>
                     再来一次
                   </button>
-                  <button type="button" className="primaryResultButton" onClick={startPractice}>
+                  <button type="button" className="primaryResultButton" onClick={() => startPractice()}>
                     免费体验
                   </button>
                 </footer>

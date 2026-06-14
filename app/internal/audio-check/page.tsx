@@ -457,7 +457,7 @@ export default function AudioCheckPage() {
                 <button
                   type="button"
                   className="audioStepNext"
-                  onClick={() => router.push("/?practice=1")}
+                  onClick={() => router.push("/?practice=read")}
                 >
                   进入单词卡片
                 </button>
