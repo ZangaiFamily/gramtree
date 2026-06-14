@@ -2215,58 +2215,102 @@ textarea:focus {
   }
 
   .resultOverlay {
-    padding: 12px;
+    padding: 48px 16px;
   }
 
   .resultModal {
-    max-height: calc(100vh - 24px);
+    width: min(100%, 340px);
+    max-height: calc(100dvh - 96px);
     overflow-y: auto;
-    border-radius: 16px;
+    border-radius: 14px;
   }
 
   .resultHeader {
-    min-height: 66px;
-    padding: 0 18px;
+    min-height: 56px;
+    gap: 10px;
+    padding: 0 20px;
+    font-size: 1.4rem;
   }
 
   .resultScoreRow {
-    min-height: 118px;
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 20px 18px;
+    min-height: 112px;
+    align-items: center;
+    flex-direction: row;
+    gap: 14px;
+    padding: 18px 20px;
+  }
+
+  .resultGrade {
+    font-size: 3.5rem;
+  }
+
+  .resultScore {
+    font-size: 1.9rem;
   }
 
   .resultScoreRow dl {
-    width: 100%;
+    flex: 1;
+    gap: 10px;
     justify-content: space-between;
   }
 
+  .resultScoreRow dt {
+    font-size: 1.85rem;
+  }
+
+  .resultScoreRow dd {
+    margin-top: 6px;
+    font-size: 0.92rem;
+  }
+
   .resultStatsGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .resultStatsGrid div {
-    min-height: 82px;
-    border-right: 0;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .resultStatsGrid div:last-child {
+    min-height: 72px;
+    gap: 6px;
+    border-right: 1px solid #e5e7eb;
     border-bottom: 0;
   }
 
+  .resultStatsGrid div:last-child {
+    border-right: 0;
+  }
+
+  .resultStatsGrid span {
+    font-size: 0.88rem;
+  }
+
+  .resultStatsGrid strong {
+    font-size: 1.45rem;
+  }
+
   .resultMessage {
-    padding: 22px 16px 16px;
+    gap: 8px;
+    padding: 18px 18px 14px;
+  }
+
+  .resultMessage strong {
+    font-size: 1.03rem;
+    line-height: 1.35;
+  }
+
+  .resultMessage span {
+    font-size: 0.9rem;
+    line-height: 1.3;
   }
 
   .resultActions {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 12px 18px 22px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 10px 20px 20px;
   }
 
   .resultActions button {
-    min-height: 54px;
+    min-height: 48px;
+    border-radius: 10px;
+    font-size: 1rem;
   }
 
   .internalLink {
