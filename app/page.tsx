@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
+import { createSpeechRecognitionSession, type SpeechRecognitionSession } from "@/lib/stt";
 
 type Token = {
   word: string;
@@ -28,44 +29,6 @@ type ClassicSentence = {
 
 type ReadResult = "recognized" | "try-again" | "not-matched";
 type PracticeMode = "read" | "dictation";
-
-type SpeechRecognitionAlternativeLike = {
-  transcript: string;
-  confidence?: number;
-};
-
-type SpeechRecognitionResultLike = {
-  isFinal: boolean;
-  0: SpeechRecognitionAlternativeLike;
-};
-
-type SpeechRecognitionEventLike = Event & {
-  resultIndex: number;
-  results: {
-    length: number;
-    [index: number]: SpeechRecognitionResultLike;
-  };
-};
-
-type SpeechRecognitionLike = EventTarget & {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  maxAlternatives: number;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-
-type SpeechRecognitionConstructorLike = new () => SpeechRecognitionLike;
-
-type BrowserWindowWithSpeechRecognition = Window & {
-  SpeechRecognition?: SpeechRecognitionConstructorLike;
-  webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
-};
 
 type PracticeStats = {
   startedAt: number;
@@ -597,7 +560,7 @@ export default function Home() {
   const [voiceBand, setVoiceBand] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
-  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
   const speechTranscriptRef = useRef("");
   const recordingUrlsRef = useRef<(string | null)[]>([]);
   const voiceAnimationRef = useRef<number | null>(null);
@@ -605,6 +568,7 @@ export default function Home() {
   const smoothedVoiceLevelRef = useRef(0);
   const isRecordingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
+  const readButtonPointerToggleAtRef = useRef(0);
 
   const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
   const stages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
@@ -887,7 +851,6 @@ export default function Home() {
 
     if (recognition) {
       if (abortRecognition || !evaluate) {
-        recognition.onend = null;
         recognition.abort();
       } else {
         recognition.stop();
@@ -951,6 +914,11 @@ export default function Home() {
       setReadResult("not-matched");
       return;
     }
+    if (typeof MediaRecorder === "undefined") {
+      setRecordingError("当前浏览器不支持 MediaRecorder 录音。");
+      setReadResult("not-matched");
+      return;
+    }
 
     setRecordingError("");
     setRecognizedText("");
@@ -966,7 +934,15 @@ export default function Home() {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
-      const recorder = new MediaRecorder(stream);
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecordingError("当前浏览器无法创建录音器。");
+        setReadResult("not-matched");
+        return;
+      }
       startVoiceLevelMeter(stream);
       recordingChunksRef.current = [];
       mediaRecorderRef.current = recorder;
@@ -988,47 +964,46 @@ export default function Home() {
         });
       };
 
-      const SpeechRecognition = (window as BrowserWindowWithSpeechRecognition).SpeechRecognition
-        ?? (window as BrowserWindowWithSpeechRecognition).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        speechRecognitionRef.current = recognition;
-        recognition.lang = "en-US";
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        recognition.onresult = (event) => {
-          let transcript = "";
-          for (let index = 0; index < event.results.length; index += 1) {
-            transcript += event.results[index][0]?.transcript ?? "";
-          }
-          speechTranscriptRef.current = transcript.trim();
-          setRecognizedText(speechTranscriptRef.current);
-        };
-        recognition.onerror = () => {
-          if (recordingSessionIdRef.current !== sessionId) return;
-          setRecordingError("语音识别失败，请再试一次。");
-        };
-        recognition.onend = () => {
-          if (recordingSessionIdRef.current !== sessionId) return;
-          const transcript = speechTranscriptRef.current.trim();
-          applyReadResult(compareSpeechToTarget(transcript, stage.answer), transcript);
-          speechRecognitionRef.current = null;
-        };
-        recognition.start();
-      } else {
-        setRecordingError("当前浏览器不支持语音识别。");
-      }
-
       recorder.start();
       isRecordingRef.current = true;
       setIsRecording(true);
-    } catch {
+
+      const recognition = createSpeechRecognitionSession({
+        language: "en",
+        onTranscript: (transcript) => {
+          if (recordingSessionIdRef.current !== sessionId) return;
+          speechTranscriptRef.current = transcript;
+          setRecognizedText(transcript);
+        },
+        onError: (message) => {
+          if (recordingSessionIdRef.current !== sessionId) return;
+          setRecordingError(message);
+        },
+        onEnd: (transcript) => {
+          if (recordingSessionIdRef.current !== sessionId) return;
+          const nextTranscript = transcript.trim();
+          applyReadResult(compareSpeechToTarget(nextTranscript, stage.answer), nextTranscript);
+          speechRecognitionRef.current = null;
+        },
+      });
+
+      if (recognition) {
+        speechRecognitionRef.current = recognition;
+        try {
+          recognition.start();
+        } catch {
+          speechRecognitionRef.current = null;
+          setRecordingError("录音已开始，但当前浏览器无法启动语音识别。");
+        }
+      } else {
+        setRecordingError("录音已开始，但当前浏览器不支持语音识别。");
+      }
+    } catch (error) {
       isRecordingRef.current = false;
       setIsRecording(false);
       stopVoiceLevelMeter();
-      setRecordingError("跟读练习需要麦克风权限。");
+      const errorName = error instanceof DOMException ? error.name : "";
+      setRecordingError(errorName ? `跟读练习需要麦克风权限：${errorName}。` : "跟读练习需要麦克风权限。");
       setReadResult("not-matched");
     }
   }
@@ -1310,6 +1285,11 @@ export default function Home() {
                   aria-pressed={isRecording}
                   onPointerDown={(event) => {
                     event.preventDefault();
+                    readButtonPointerToggleAtRef.current = Date.now();
+                    toggleReadRecording();
+                  }}
+                  onClick={() => {
+                    if (Date.now() - readButtonPointerToggleAtRef.current < 600) return;
                     toggleReadRecording();
                   }}
                   onKeyDown={(event) => {

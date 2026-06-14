@@ -15,6 +15,10 @@ type SpeechRecognitionEventLike = Event & {
   };
 };
 
+type SpeechRecognitionErrorEventLike = Event & {
+  error?: string;
+};
+
 type SpeechRecognitionLike = EventTarget & {
   continuous: boolean;
   interimResults: boolean;
@@ -41,6 +45,66 @@ function getSpeechRecognitionConstructor() {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
+export type SpeechRecognitionSession = {
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+export type SpeechRecognitionSessionOptions = {
+  language?: "en";
+  interimResults?: boolean;
+  onTranscript?: (transcript: string) => void;
+  onError?: (message: string, error?: string) => void;
+  onEnd?: (transcript: string) => void;
+};
+
+export function createSpeechRecognitionSession({
+  language = "en",
+  interimResults = true,
+  onTranscript,
+  onError,
+  onEnd,
+}: SpeechRecognitionSessionOptions): SpeechRecognitionSession | null {
+  const SpeechRecognition = getSpeechRecognitionConstructor();
+  if (!SpeechRecognition) return null;
+
+  const recognition = new SpeechRecognition();
+  let transcript = "";
+
+  recognition.lang = language === "en" ? "en-US" : "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = interimResults;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    let nextTranscript = "";
+    for (let index = 0; index < event.results.length; index += 1) {
+      nextTranscript += event.results[index][0]?.transcript ?? "";
+    }
+    transcript = nextTranscript.trim();
+    onTranscript?.(transcript);
+  };
+
+  recognition.onerror = (event) => {
+    const error = (event as SpeechRecognitionErrorEventLike).error;
+    onError?.(error ? `语音识别失败：${error}。` : "语音识别失败，请再试一次。", error);
+  };
+
+  recognition.onend = () => {
+    onEnd?.(transcript.trim());
+  };
+
+  return {
+    start: () => recognition.start(),
+    stop: () => recognition.stop(),
+    abort: () => {
+      recognition.onend = null;
+      recognition.abort();
+    },
+  };
+}
+
 /**
  * @deprecated Kept as a compatibility fallback. New STT work should use a provider
  * with stable cross-browser behavior, such as TransformersWhisperProvider.
@@ -53,46 +117,39 @@ export const SpeechRecognitionProvider: SttProvider = {
     return Boolean(getSpeechRecognitionConstructor());
   },
   async transcribe(_audio: Blob, options: SttOptions = {}): Promise<SttTranscript> {
-    const SpeechRecognition = getSpeechRecognitionConstructor();
-    if (!SpeechRecognition) {
-      throw new Error("当前浏览器不支持 SpeechRecognition。");
-    }
-
     const startedAt = performance.now();
-    const recognition = new SpeechRecognition();
-    let transcript = "";
-
-    recognition.lang = options.language === "en" ? "en-US" : "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
 
     return new Promise((resolve, reject) => {
-      recognition.onresult = (event) => {
-        let nextTranscript = "";
-        for (let index = 0; index < event.results.length; index += 1) {
-          nextTranscript += event.results[index][0]?.transcript ?? "";
-        }
-        transcript = nextTranscript.trim();
-      };
+      const session = createSpeechRecognitionSession({
+        language: options.language,
+        onError: (message) => reject(new Error(message)),
+        onEnd: (transcript) => {
+          resolve({
+            text: transcript,
+            words: transcript
+              ? transcript.split(/\s+/).map((word) => ({ text: word, start: null, end: null }))
+              : [],
+            provider: "speech-recognition",
+            elapsedMs: performance.now() - startedAt,
+          });
+        },
+      });
 
-      recognition.onerror = () => {
-        reject(new Error("SpeechRecognition 识别失败。"));
-      };
+      if (!session) {
+        reject(new Error("当前浏览器不支持 SpeechRecognition。"));
+        return;
+      }
 
-      recognition.onend = () => {
+      try {
+        session.start();
+      } catch {
         resolve({
-          text: transcript,
-          words: transcript
-            ? transcript.split(/\s+/).map((word) => ({ text: word, start: null, end: null }))
-            : [],
+          text: "",
+          words: [],
           provider: "speech-recognition",
           elapsedMs: performance.now() - startedAt,
         });
-      };
-
-      recognition.start();
+      }
     });
   },
 };
-

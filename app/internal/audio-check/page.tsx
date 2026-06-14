@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { speakText } from "@/lib/speech";
+import { createSpeechRecognitionSession, type SpeechRecognitionSession } from "@/lib/stt";
 
 type TestStatus = "idle" | "running" | "passed" | "failed" | "blocked";
 
@@ -13,41 +14,6 @@ type TestResult = {
   status: TestStatus;
   points: number;
   detail: string;
-};
-
-type SpeechRecognitionAlternativeLike = {
-  transcript: string;
-};
-
-type SpeechRecognitionResultLike = {
-  0: SpeechRecognitionAlternativeLike;
-};
-
-type SpeechRecognitionEventLike = Event & {
-  results: {
-    length: number;
-    [index: number]: SpeechRecognitionResultLike;
-  };
-};
-
-type SpeechRecognitionLike = EventTarget & {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  maxAlternatives: number;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-
-type SpeechRecognitionConstructorLike = new () => SpeechRecognitionLike;
-
-type SpeechRecognitionWindow = Window & {
-  SpeechRecognition?: SpeechRecognitionConstructorLike;
-  webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
 };
 
 const targetWord = "practice";
@@ -107,7 +73,7 @@ export default function AudioCheckPage() {
   const [message, setMessage] = useState("按照手机端跟读练习的流程操作。");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionSession | null>(null);
   const transcriptRef = useRef("");
 
   useEffect(() => {
@@ -228,38 +194,21 @@ export default function AudioCheckPage() {
         });
       };
 
-      const SpeechRecognition = (window as SpeechRecognitionWindow).SpeechRecognition
-        ?? (window as SpeechRecognitionWindow).webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        updateResult("speech-recognition", {
-          status: "failed",
-          points: 0,
-          detail: "当前浏览器不支持 SpeechRecognition。",
-        });
-      } else {
-        const recognition = new SpeechRecognition();
-        recognitionRef.current = recognition;
-        recognition.lang = "en-US";
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        recognition.onresult = (event) => {
-          let transcript = "";
-          for (let index = 0; index < event.results.length; index += 1) {
-            transcript += event.results[index][0]?.transcript ?? "";
-          }
-          transcriptRef.current = transcript.trim();
+      const recognition = createSpeechRecognitionSession({
+        language: "en",
+        onTranscript: (transcript) => {
+          transcriptRef.current = transcript;
           setRecognizedText(transcriptRef.current);
-        };
-        recognition.onerror = () => {
+        },
+        onError: () => {
           updateResult("speech-recognition", {
             status: "failed",
             points: 0,
             detail: "跟读过程中语音识别失败。",
           });
-        };
-        recognition.onend = () => {
+        },
+        onEnd: (transcript) => {
+          transcriptRef.current = transcript.trim();
           const normalized = normalizeSpeech(transcriptRef.current);
           const matched = normalized.split(" ").includes(targetWord);
           updateResult("speech-recognition", {
@@ -271,8 +220,27 @@ export default function AudioCheckPage() {
           });
           setMessage(matched ? "测试通过，当前浏览器可以进行跟读练习。" : "识别结果不匹配，请再试一次。");
           recognitionRef.current = null;
-        };
-        recognition.start();
+        },
+      });
+
+      if (!recognition) {
+        updateResult("speech-recognition", {
+          status: "failed",
+          points: 0,
+          detail: "当前浏览器不支持 SpeechRecognition。",
+        });
+      } else {
+        recognitionRef.current = recognition;
+        try {
+          recognition.start();
+        } catch {
+          recognitionRef.current = null;
+          updateResult("speech-recognition", {
+            status: "failed",
+            points: 0,
+            detail: "当前浏览器无法启动 SpeechRecognition。",
+          });
+        }
       }
 
       recorder.start();
