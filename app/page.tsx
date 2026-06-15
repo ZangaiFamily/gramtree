@@ -8,8 +8,8 @@ import { cancelSpeech, speakText } from "@/lib/speech";
 import { enableMobileVConsole } from "@/lib/enableMobileVConsole";
 import {
   compareSpeechToTarget,
+  getDefaultReadPracticeProviderCode,
   getReadPracticeProvider,
-  getStoredReadPracticeProviderCode,
   TransformersWhisperProvider,
   type ReadPracticeProvider,
   type ReadPracticeProviderCode,
@@ -569,13 +569,14 @@ export default function Home() {
   const [recordingError, setRecordingError] = useState("");
   const [voiceBand, setVoiceBand] = useState(0);
   const [isRecognizing, setIsRecognizing] = useState(false);
-  const [readProviderCode, setReadProviderCode] = useState<ReadPracticeProviderCode>("TWP");
+  const [readProviderCode, setReadProviderCode] = useState<ReadPracticeProviderCode>("SRP");
   const [twpPullStatus, setTwpPullStatus] = useState<TwpPullStatus>("idle");
   const [twpPullResult, setTwpPullResult] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
   const speechTranscriptRef = useRef("");
+  const speechResultAppliedRef = useRef(false);
   const recordingUrlsRef = useRef<(string | null)[]>([]);
   const voiceAnimationRef = useRef<number | null>(null);
   const voiceAudioCtxRef = useRef<AudioContext | null>(null);
@@ -620,7 +621,7 @@ export default function Home() {
     const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
     setSelectedSentence(nextSentence);
     setIsMobile(isMobileUserAgent(window.navigator.userAgent));
-    setReadProviderCode(getStoredReadPracticeProviderCode());
+    setReadProviderCode(getDefaultReadPracticeProviderCode());
   }, []);
 
   useEffect(() => {
@@ -894,7 +895,7 @@ export default function Home() {
         recognition.stop();
       }
       speechRecognitionRef.current = null;
-    } else if (evaluate && readProviderRef.current.mode === "streaming") {
+    } else if (evaluate && readProviderRef.current.mode === "streaming" && !speechResultAppliedRef.current) {
       applyReadResult("not-matched", "");
     }
 
@@ -921,7 +922,7 @@ export default function Home() {
   }) {
     if (!provider.transcribeAndScore) return;
     setIsRecognizing(true);
-    setRecordingError("正在加载 TWP 模型并识别录音...");
+    setRecordingError(`正在使用 ${provider.label} 识别录音...`);
 
     try {
       const result = await withReadRecognitionTimeout(provider.transcribeAndScore(audio, targetText));
@@ -931,7 +932,7 @@ export default function Home() {
     } catch (error) {
       if (recordingSessionIdRef.current !== sessionId) return;
       const message = error instanceof Error ? error.message : "未知错误";
-      setRecordingError(`TWP 识别失败：${message}`);
+      setRecordingError(`${provider.label} 识别失败：${message}`);
       applyReadResult("not-matched", "");
     } finally {
       if (recordingSessionIdRef.current === sessionId) {
@@ -996,6 +997,7 @@ export default function Home() {
     setIsRecognizing(false);
     setVoiceBand(0);
     speechTranscriptRef.current = "";
+    speechResultAppliedRef.current = false;
 
     try {
       const sessionId = recordingSessionIdRef.current + 1;
@@ -1061,6 +1063,7 @@ export default function Home() {
         onEnd: (transcript) => {
           if (recordingSessionIdRef.current !== sessionId) return;
           const nextTranscript = transcript.trim();
+          speechResultAppliedRef.current = true;
           applyReadResult(compareSpeechToTarget(nextTranscript, stage.answer), nextTranscript);
           speechRecognitionRef.current = null;
         },

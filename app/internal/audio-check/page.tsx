@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { speakText } from "@/lib/speech";
 import {
+  getDefaultReadPracticeProviderCode,
   getReadPracticeProvider,
-  getStoredReadPracticeProviderCode,
   type ReadPracticeProvider,
   type SpeechRecognitionSession,
 } from "@/lib/stt";
@@ -93,7 +93,7 @@ export default function AudioCheckPage() {
   const [recognizedText, setRecognizedText] = useState("");
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [message, setMessage] = useState("按照手机端跟读练习的流程操作。");
-  const [readProviderCode] = useState(() => getStoredReadPracticeProviderCode());
+  const [readProviderCode] = useState(() => getDefaultReadPracticeProviderCode());
   const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);

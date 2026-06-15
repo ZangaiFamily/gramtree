@@ -24,8 +24,6 @@ export type ReadPracticeProvider = {
   createSession?: (options: SpeechRecognitionSessionOptions) => SpeechRecognitionSession | null;
 };
 
-const storageKey = "gramtree.readPracticeProvider";
-
 const providers: Record<ReadPracticeProviderCode, ReadPracticeProvider> = {
   TWP: {
     code: "TWP",
@@ -55,22 +53,11 @@ const providers: Record<ReadPracticeProviderCode, ReadPracticeProvider> = {
 };
 
 export function getDefaultReadPracticeProviderCode(): ReadPracticeProviderCode {
-  return "TWP";
+  return "SRP";
 }
 
 export function isReadPracticeProviderCode(value: string | null): value is ReadPracticeProviderCode {
   return value === "TWP" || value === "SRP";
-}
-
-export function getStoredReadPracticeProviderCode(): ReadPracticeProviderCode {
-  if (typeof window === "undefined") return getDefaultReadPracticeProviderCode();
-  const stored = window.localStorage.getItem(storageKey);
-  return isReadPracticeProviderCode(stored) ? stored : getDefaultReadPracticeProviderCode();
-}
-
-export function setStoredReadPracticeProviderCode(code: ReadPracticeProviderCode) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(storageKey, code);
 }
 
 export function getReadPracticeProvider(code: ReadPracticeProviderCode = getDefaultReadPracticeProviderCode()) {

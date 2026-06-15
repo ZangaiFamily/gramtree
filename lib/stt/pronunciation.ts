@@ -9,6 +9,7 @@ const cmuPronunciations: Record<string, string[]> = {
   hear: ["HH IY R"],
   here: ["HH IY R"],
   i: ["AY"],
+  in: ["IH N"],
   eye: ["AY"],
   know: ["N OW"],
   no: ["N OW"],
@@ -28,6 +29,7 @@ const cmuPronunciations: Record<string, string[]> = {
   rode: ["R OW D"],
   sea: ["S IY"],
   see: ["S IY"],
+  sing: ["S IH NG"],
   son: ["S AH N"],
   sun: ["S AH N"],
   their: ["DH EH R"],
@@ -43,11 +45,28 @@ const cmuPronunciations: Record<string, string[]> = {
   wood: ["W UH D"],
   would: ["W UH D"],
   your: ["Y AO R", "Y UH R"],
+  yin: ["Y IH N"],
   "you're": ["Y AO R", "Y UH R"],
 };
 
 function normalizeCmuPhones(value: string) {
   return value.replace(/[0-2]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function phoneTokens(value: string) {
+  return normalizeCmuPhones(value).split(" ").filter(Boolean);
+}
+
+function normalizeFinalNasal(tokens: string[]) {
+  if (!tokens.length) return tokens;
+  const next = [...tokens];
+  if (next[next.length - 1] === "NG") next[next.length - 1] = "N";
+  return next;
+}
+
+function endsWithPhones(candidate: string[], target: string[]) {
+  if (!target.length || candidate.length < target.length) return false;
+  return target.every((phone, index) => candidate[candidate.length - target.length + index] === phone);
 }
 
 export function getPronunciationKeys(word: string) {
@@ -61,5 +80,14 @@ export function samePronunciation(left: string, right: string) {
   const rightKeys = getPronunciationKeys(right);
   if (!leftKeys.length || !rightKeys.length) return false;
 
-  return leftKeys.some((leftKey) => rightKeys.includes(leftKey));
+  if (leftKeys.some((leftKey) => rightKeys.includes(leftKey))) return true;
+
+  return leftKeys.some((leftKey) => {
+    const leftPhones = normalizeFinalNasal(phoneTokens(leftKey));
+    return rightKeys.some((rightKey) => {
+      const rightPhones = normalizeFinalNasal(phoneTokens(rightKey));
+      if (rightPhones.length > 2) return false;
+      return endsWithPhones(leftPhones, rightPhones);
+    });
+  });
 }
