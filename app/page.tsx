@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
@@ -10,13 +9,10 @@ import {
   compareSpeechToTarget,
   getDefaultReadPracticeProviderCode,
   getReadPracticeProvider,
-  TransformersWhisperProvider,
   type ReadPracticeProvider,
   type ReadPracticeProviderCode,
   type SpeechRecognitionSession,
 } from "@/lib/stt";
-
-type TwpPullStatus = "idle" | "loading" | "success" | "error";
 
 type Token = {
   word: string;
@@ -40,8 +36,6 @@ type ClassicSentence = {
 
 type ReadResult = "recognized" | "try-again" | "not-matched";
 type PracticeMode = "read" | "dictation";
-
-const readRecognitionTimeoutMs = 90_000;
 
 type PracticeStats = {
   startedAt: number;
@@ -402,21 +396,6 @@ function resultLabel(result: ReadResult | null) {
   return "点击跟读";
 }
 
-function createReadRecognitionTimeout() {
-  return new Error(`TWP 首次加载或识别超时，请检查网络后重试。（${Math.round(readRecognitionTimeoutMs / 1000)} 秒）`);
-}
-
-function withReadRecognitionTimeout<T>(task: Promise<T>) {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(createReadRecognitionTimeout()), readRecognitionTimeoutMs);
-  });
-
-  return Promise.race([task, timeout]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
-
 function voiceLevelBand(level: number) {
   if (level >= 0.8) return 3;
   if (level >= 0.45) return 2;
@@ -547,12 +526,10 @@ function TokenBuilder({
 }
 
 export default function Home() {
-  const router = useRouter();
   const [selectedSentence, setSelectedSentence] = useState<ClassicSentence>(sentenceLibrary[0]);
   const [isMobile, setIsMobile] = useState(false);
   const [isPractice, setIsPractice] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("dictation");
-  const [showMicPrompt, setShowMicPrompt] = useState(false);
   const autoStartModeRef = useRef<PracticeMode | null>(null);
   const [stageIndex, setStageIndex] = useState(0);
   const [wordInputs, setWordInputs] = useState<string[]>([]);
@@ -568,10 +545,7 @@ export default function Home() {
   const [recordingUrls, setRecordingUrls] = useState<(string | null)[]>([]);
   const [recordingError, setRecordingError] = useState("");
   const [voiceBand, setVoiceBand] = useState(0);
-  const [isRecognizing, setIsRecognizing] = useState(false);
   const [readProviderCode, setReadProviderCode] = useState<ReadPracticeProviderCode>("SRP");
-  const [twpPullStatus, setTwpPullStatus] = useState<TwpPullStatus>("idle");
-  const [twpPullResult, setTwpPullResult] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
@@ -656,7 +630,6 @@ export default function Home() {
     setRecognizedText("");
     setReadResult(null);
     setRecordingError("");
-    setIsRecognizing(false);
   }, [stageIndex, practiceMode]);
 
   useEffect(() => {
@@ -665,13 +638,6 @@ export default function Home() {
     const timer = window.setTimeout(() => speakWord(answer), 180);
     return () => window.clearTimeout(timer);
   }, [isPractice, stageIndex, stage.answer]);
-
-  useEffect(() => {
-    if (!isPractice || !isReadMode || !readProvider.preload) return;
-    readProvider.preload().catch(() => {
-      // The actual recording flow will surface the provider error when the user records.
-    });
-  }, [isPractice, isReadMode, readProvider]);
 
   useEffect(() => {
     if (!autoStartModeRef.current) return;
@@ -712,21 +678,15 @@ export default function Home() {
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
-    setIsRecognizing(false);
+    setRecognizedText("");
   }
 
   function enterReadPractice() {
-    setPracticeMode("read");
-    setShowMicPrompt(true);
+    startPractice("read");
   }
 
   function enterDictationPractice() {
     startPractice("dictation");
-  }
-
-  function startPracticeWithoutMicTest() {
-    setShowMicPrompt(false);
-    startPractice("read");
   }
 
   function openResultModal() {
@@ -909,38 +869,6 @@ export default function Home() {
     }
   }
 
-  async function transcribeReadRecording({
-    audio,
-    provider,
-    sessionId,
-    targetText,
-  }: {
-    audio: Blob;
-    provider: ReadPracticeProvider;
-    sessionId: number;
-    targetText: string;
-  }) {
-    if (!provider.transcribeAndScore) return;
-    setIsRecognizing(true);
-    setRecordingError(`正在使用 ${provider.label} 识别录音...`);
-
-    try {
-      const result = await withReadRecognitionTimeout(provider.transcribeAndScore(audio, targetText));
-      if (recordingSessionIdRef.current !== sessionId) return;
-      setRecordingError("");
-      applyReadResult(result.score.result, result.transcript.text);
-    } catch (error) {
-      if (recordingSessionIdRef.current !== sessionId) return;
-      const message = error instanceof Error ? error.message : "未知错误";
-      setRecordingError(`${provider.label} 识别失败：${message}`);
-      applyReadResult("not-matched", "");
-    } finally {
-      if (recordingSessionIdRef.current === sessionId) {
-        setIsRecognizing(false);
-      }
-    }
-  }
-
   function applyReadResult(result: ReadResult, transcript: string) {
     setRecognizedText(transcript);
     setReadResult(result);
@@ -979,7 +907,7 @@ export default function Home() {
   }
 
   async function startReadRecording() {
-    if (isRecordingRef.current || isRecognizing || status === "success") return;
+    if (isRecordingRef.current || status === "success") return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setRecordingError("当前浏览器不支持录音。");
       setReadResult("not-matched");
@@ -994,7 +922,6 @@ export default function Home() {
     setRecordingError("");
     setRecognizedText("");
     setReadResult(null);
-    setIsRecognizing(false);
     setVoiceBand(0);
     speechTranscriptRef.current = "";
     speechResultAppliedRef.current = false;
@@ -1038,16 +965,11 @@ export default function Home() {
           next[stageIndex] = nextUrl;
           return next;
         });
-        if (shouldEvaluateRecordingRef.current && provider.mode === "post-recording") {
-          transcribeReadRecording({ audio: blob, provider, sessionId, targetText });
-        }
       };
 
       recorder.start();
       isRecordingRef.current = true;
       setIsRecording(true);
-
-      if (provider.mode !== "streaming") return;
 
       const recognition = provider.createSession?.({
         language: "en",
@@ -1096,7 +1018,6 @@ export default function Home() {
   }
 
   function toggleReadRecording() {
-    if (isRecognizing) return;
     if (isRecordingRef.current) {
       stopReadRecording();
       return;
@@ -1120,7 +1041,6 @@ export default function Home() {
     setRecognizedText("");
     setReadResult(null);
     setRecordingError("");
-    setIsRecognizing(false);
   }
 
   function skipReadStage() {
@@ -1220,24 +1140,6 @@ export default function Home() {
   const duration = formatDuration(finishedAt - stats.startedAt);
   const grade = score >= 8500 ? "S" : score >= 7000 ? "A" : score >= 5200 ? "B" : "C";
 
-  async function pullTransformersWhisper() {
-    if (twpPullStatus === "loading") return;
-    const startedAt = performance.now();
-    setTwpPullStatus("loading");
-    setTwpPullResult("正在拉取并初始化 TWP 模型资源...");
-
-    try {
-      await TransformersWhisperProvider.preload?.();
-      const elapsedMs = Math.round(performance.now() - startedAt);
-      setTwpPullStatus("success");
-      setTwpPullResult(`拉取完成：${TransformersWhisperProvider.label} 已初始化，用时 ${elapsedMs}ms。`);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      setTwpPullStatus("error");
-      setTwpPullResult(`拉取失败：${detail}`);
-    }
-  }
-
   const snowflakes = useMemo(() => {
     return Array.from({ length: 45 }).map((_, i) => ({
       left: (i * 2.3 + 1.7 * (i % 7)) % 100,
@@ -1259,33 +1161,6 @@ export default function Home() {
           aria-label="打开内部语法图页面"
         >
           内部
-        </Link>
-        <Link
-          href="/internal/audio-check"
-          className="internalLink"
-          aria-label="打开音频能力检测页面"
-        >
-          音频检测
-        </Link>
-        <div className="homeTwpPull" aria-live="polite">
-          <button
-            type="button"
-            className="internalLink"
-            disabled={twpPullStatus === "loading"}
-            onClick={pullTransformersWhisper}
-          >
-            {twpPullStatus === "loading" ? "拉取中" : "拉取 TWP"}
-          </button>
-          {twpPullResult ? (
-            <p className={`asrPullResult ${twpPullStatus}`}>{twpPullResult}</p>
-          ) : null}
-        </div>
-        <Link
-          href="/internal/asr-check"
-          className="internalLink"
-          aria-label="打开浏览器端 ASR 检测页面"
-        >
-          ASR 检测
         </Link>
       </nav>
 
@@ -1323,44 +1198,6 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {showMicPrompt ? (
-          <div
-            className="micPromptOverlay"
-            role="dialog"
-            aria-modal="true"
-            aria-label="麦克风检测"
-            onClick={() => setShowMicPrompt(false)}
-          >
-            <div className="micPromptCard" onClick={(event) => event.stopPropagation()}>
-              <span className="micPromptIcon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 14.25c1.66 0 3-1.34 3-3V6.75c0-1.66-1.34-3-3-3s-3 1.34-3 3v4.5c0 1.66 1.34 3 3 3Z" />
-                  <path d="M17.5 10.75v.5a5.5 5.5 0 0 1-11 0v-.5" />
-                  <path d="M12 16.75v3.5" />
-                  <path d="M8.75 20.25h6.5" />
-                </svg>
-              </span>
-              <h2>先测一下麦克风？</h2>
-              <p>朗读练习需要使用麦克风。你确认过它是否可用了吗？要不要现在快速测一下？</p>
-              <div className="micPromptActions">
-                <button
-                  type="button"
-                  className="micPromptGhost"
-                  onClick={startPracticeWithoutMicTest}
-                >
-                  不用，直接开始
-                </button>
-                <button
-                  type="button"
-                  className="micPromptPrimary"
-                  onClick={() => router.push("/internal/audio-check?next=practice")}
-                >
-                  先测试麦克风
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
         </>
       ) : (
         <section className="practiceShell" aria-label={isReadMode ? "Read-aloud practice" : "Keyboard sentence practice"}>
@@ -1412,7 +1249,7 @@ export default function Home() {
                     event.preventDefault();
                     toggleReadRecording();
                   }}
-                  disabled={status === "success" || isRecognizing}
+                  disabled={status === "success"}
                 >
                   <svg className="micIcon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 14.25c1.66 0 3-1.34 3-3V6.75c0-1.66-1.34-3-3-3s-3 1.34-3 3v4.5c0 1.66 1.34 3 3 3Z" />
@@ -1425,7 +1262,7 @@ export default function Home() {
                   </svg>
                 </button>
                 <div className={`readResultBadge ${readResult ?? "idle"}`}>
-                  {isRecognizing ? "正在识别" : resultLabel(readResult)}
+                  {resultLabel(readResult)}
                 </div>
                 {recognizedText ? (
                   <p className="recognizedText">听到：<strong>{recognizedText}</strong></p>

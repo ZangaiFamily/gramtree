@@ -1,5 +1,3 @@
-import type { SttOptions, SttProvider, SttTranscript } from "./types";
-
 type SpeechRecognitionAlternativeLike = {
   transcript: string;
 };
@@ -104,52 +102,3 @@ export function createSpeechRecognitionSession({
     },
   };
 }
-
-/**
- * @deprecated Kept as a compatibility fallback. New STT work should use a provider
- * with stable cross-browser behavior, such as TransformersWhisperProvider.
- */
-export const SpeechRecognitionProvider: SttProvider = {
-  id: "speech-recognition",
-  label: "Browser SpeechRecognition",
-  deprecated: true,
-  async isAvailable() {
-    return Boolean(getSpeechRecognitionConstructor());
-  },
-  async transcribe(_audio: Blob, options: SttOptions = {}): Promise<SttTranscript> {
-    const startedAt = performance.now();
-
-    return new Promise((resolve, reject) => {
-      const session = createSpeechRecognitionSession({
-        language: options.language,
-        onError: (message) => reject(new Error(message)),
-        onEnd: (transcript) => {
-          resolve({
-            text: transcript,
-            words: transcript
-              ? transcript.split(/\s+/).map((word) => ({ text: word, start: null, end: null }))
-              : [],
-            provider: "speech-recognition",
-            elapsedMs: performance.now() - startedAt,
-          });
-        },
-      });
-
-      if (!session) {
-        reject(new Error("当前浏览器不支持 SpeechRecognition。"));
-        return;
-      }
-
-      try {
-        session.start();
-      } catch {
-        resolve({
-          text: "",
-          words: [],
-          provider: "speech-recognition",
-          elapsedMs: performance.now() - startedAt,
-        });
-      }
-    });
-  },
-};

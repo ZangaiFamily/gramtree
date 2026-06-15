@@ -1,4 +1,3 @@
-import type { SttTranscript } from "./types";
 import { samePronunciation } from "./pronunciation";
 
 export type ReadScoreResult = "recognized" | "try-again" | "not-matched";
@@ -68,10 +67,4 @@ function scoreWords(transcriptWords: string[], targetWords: string[]): ReadScore
     missingWords,
     extraWords: unmatchedTranscript,
   };
-}
-
-export function scoreReadAttempt(transcript: SttTranscript, targetText: string): ReadScore {
-  const targetWords = wordsOf(targetText);
-  const transcriptWords = wordsOf(transcript.text);
-  return scoreWords(transcriptWords, targetWords);
 }
