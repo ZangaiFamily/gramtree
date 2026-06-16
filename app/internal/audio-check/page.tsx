@@ -122,8 +122,12 @@ export default function AudioCheckPage() {
     results.find((result) => result.id === id)?.status ?? "idle";
   const isTested = (status: TestStatus) => status !== "idle" && status !== "running";
   const standardAudioTested = isTested(statusOf("standard-audio"));
-  const recordingTested =
-    isTested(statusOf("microphone-recording")) && isTested(statusOf("speech-recognition"));
+  const recordingFinished =
+    Boolean(recordingUrl) ||
+    isTested(statusOf("microphone-recording")) ||
+    isTested(statusOf("recording-playback"));
+  const speechRecognitionFinished = Boolean(recognizedText.trim()) || isTested(statusOf("speech-recognition"));
+  const recordingTested = recordingFinished && speechRecognitionFinished;
 
   function updateResult(id: string, patch: Partial<TestResult>) {
     setResults((current) =>
