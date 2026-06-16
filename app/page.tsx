@@ -1162,6 +1162,13 @@ export default function Home() {
         >
           内部
         </Link>
+        <Link
+          href="/internal/audio-check"
+          className="internalLink"
+          aria-label="打开音频能力检测页面"
+        >
+          音频检测
+        </Link>
       </nav>
 
       <a
