@@ -707,6 +707,19 @@ textarea {
   max-width: min(82vw, 30rem);
 }
 
+.readPracticeToken .contextToken {
+  opacity: 0.58;
+  transform: scale(0.92);
+}
+
+.phraseReadToken .contextToken .homeWordBlock {
+  background: #f1f5f9;
+}
+
+.phraseReadToken .contextToken .grammarUnderline {
+  background: #cbd5e1;
+}
+
 .readPracticeToken .homeWordBlock {
   inline-size: min(82vw, 30rem);
   max-inline-size: 100%;

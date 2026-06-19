@@ -4,6 +4,8 @@ type SpeechRecognitionAlternativeLike = {
 
 type SpeechRecognitionResultLike = {
   0: SpeechRecognitionAlternativeLike;
+  length?: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
 };
 
 type SpeechRecognitionEventLike = Event & {
@@ -73,14 +75,19 @@ export function createSpeechRecognitionSession({
   recognition.lang = language === "en" ? "en-US" : "en-US";
   recognition.continuous = false;
   recognition.interimResults = interimResults;
-  recognition.maxAlternatives = 1;
+  recognition.maxAlternatives = 5;
 
   recognition.onresult = (event) => {
-    let nextTranscript = "";
+    const transcriptAlternatives: string[] = [""];
     for (let index = 0; index < event.results.length; index += 1) {
-      nextTranscript += event.results[index][0]?.transcript ?? "";
+      const result = event.results[index];
+      const alternativeCount = Math.max(1, Math.min(result.length ?? 1, recognition.maxAlternatives));
+      for (let alternativeIndex = 0; alternativeIndex < alternativeCount; alternativeIndex += 1) {
+        const alternative = result[alternativeIndex]?.transcript ?? "";
+        transcriptAlternatives[alternativeIndex] = `${transcriptAlternatives[alternativeIndex] ?? ""}${alternative}`;
+      }
     }
-    transcript = nextTranscript.trim();
+    transcript = transcriptAlternatives.map((alternative) => alternative.trim()).filter(Boolean).join("\n");
     onTranscript?.(transcript);
   };
 

@@ -27,6 +27,9 @@ type Stage = {
   answer: string;
   chinese: string;
   tokenIndexes: number[];
+  readAnswer?: string;
+  readTokenIndexes?: number[];
+  readFocusIndex?: number;
 };
 
 type ClassicSentence = {
@@ -276,7 +279,12 @@ const wordPhonetics: Record<string, string> = {
   the: "/ðə/",
   to: "/tuː/",
   you: "/juː/",
+  with: "/wɪð/",
 };
+
+const weakReadWords = new Set([
+  "a", "an", "the", "to", "of", "in", "on", "with", "for", "by", "and", "is", "are", "was", "were",
+]);
 
 function sentenceWords(sentence: string) {
   return sentence.match(/[A-Za-z']+/g) ?? [];
@@ -366,13 +374,37 @@ function createTokens(sentence: string): Token[] {
   }));
 }
 
+function createReadTokenIndexes(tokens: Token[], index: number) {
+  const lower = tokens[index].word.toLowerCase();
+  if (!weakReadWords.has(lower) || tokens.length <= 1) return undefined;
+
+  const previousIndex = index > 0 ? index - 1 : null;
+  const nextIndex = index < tokens.length - 1 ? index + 1 : null;
+  if (nextIndex !== null && !weakReadWords.has(tokens[nextIndex].word.toLowerCase())) {
+    return [index, nextIndex];
+  }
+  if (previousIndex !== null && !weakReadWords.has(tokens[previousIndex].word.toLowerCase())) {
+    return [previousIndex, index];
+  }
+  return [Math.max(0, index - 1), index, Math.min(tokens.length - 1, index + 1)].filter(
+    (tokenIndex, position, indexes) => indexes.indexOf(tokenIndex) === position,
+  );
+}
+
 function createStages(tokens: Token[], sentence: ClassicSentence): Stage[] {
   return [
-    ...tokens.map((token, index) => ({
-      answer: token.word,
-      chinese: token.chinese,
-      tokenIndexes: [index],
-    })),
+    ...tokens.map((token, index) => {
+      const readTokenIndexes = createReadTokenIndexes(tokens, index);
+      const readAnswer = readTokenIndexes?.map((tokenIndex) => tokens[tokenIndex].word).join(" ");
+      return {
+        answer: token.word,
+        chinese: token.chinese,
+        tokenIndexes: [index],
+        readAnswer,
+        readTokenIndexes,
+        readFocusIndex: readTokenIndexes?.indexOf(index),
+      };
+    }),
     {
       answer: sentence.text,
       chinese: sentence.chinese,
@@ -486,12 +518,16 @@ function TokenBuilder({
   translation,
   enableWordSpeech = true,
   promptText = "按鼠标任意键开始造这个句子",
+  speechText,
+  focusIndex,
 }: {
   className?: string;
   selectedTokens: Token[];
   translation: string;
   enableWordSpeech?: boolean;
   promptText?: string;
+  speechText?: string;
+  focusIndex?: number;
 }) {
   return (
     <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree 造句器">
@@ -499,9 +535,9 @@ function TokenBuilder({
       <div className="wordStrip homeWordStrip">
         {selectedTokens.map((token, index) => (
           <div
-            className="builderToken homeBuilderToken"
+            className={`builderToken homeBuilderToken ${focusIndex !== undefined && index !== focusIndex ? "contextToken" : ""}`}
             key={`${token.word}-${index}`}
-            onClick={enableWordSpeech ? () => speakWord(token.word) : undefined}
+            onClick={enableWordSpeech ? () => speakWord(speechText ?? token.word) : undefined}
           >
             <span className="phoneticBadge homePhoneticBadge">{token.phonetic}</span>
             <span className="wordBubbleStack">
@@ -567,11 +603,15 @@ export default function Home() {
   const isReadMode = practiceMode === "read";
   const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
   const readProviderRef = useRef<ReadPracticeProvider>(readProvider);
+  const readAnswer = stage.readAnswer ?? stage.answer;
+  const readTokenIndexes = stage.readTokenIndexes ?? stage.tokenIndexes;
+  const readFocusIndex = stage.readFocusIndex;
   const isSentenceReadStage = stage.tokenIndexes.length > 1;
+  const isPhraseReadStage = !isSentenceReadStage && readTokenIndexes.length > 1;
   const submittedAnswer = wordInputs.join(" ");
   const revealedTokens = useMemo(
-    () => stage.tokenIndexes.map((index) => tokens[index]),
-    [stage.tokenIndexes, tokens],
+    () => (isReadMode ? readTokenIndexes : stage.tokenIndexes).map((index) => tokens[index]),
+    [isReadMode, readTokenIndexes, stage.tokenIndexes, tokens],
   );
 
   useEffect(() => {
@@ -634,10 +674,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!isPractice) return;
-    const answer = stage.answer;
+    const answer = isReadMode ? readAnswer : stage.answer;
     const timer = window.setTimeout(() => speakWord(answer), 180);
     return () => window.clearTimeout(timer);
-  }, [isPractice, stageIndex, stage.answer]);
+  }, [isPractice, isReadMode, readAnswer, stageIndex, stage.answer]);
 
   useEffect(() => {
     if (!autoStartModeRef.current) return;
@@ -757,7 +797,7 @@ export default function Home() {
   }
 
   function playPronunciation() {
-    speakWord(stage.answer);
+    speakWord(isReadMode ? readAnswer : stage.answer);
   }
 
   function showAnswer() {
@@ -931,7 +971,6 @@ export default function Home() {
       recordingSessionIdRef.current = sessionId;
       shouldEvaluateRecordingRef.current = false;
       const provider = readProviderRef.current;
-      const targetText = stage.answer;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (recordingSessionIdRef.current !== sessionId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -986,7 +1025,7 @@ export default function Home() {
           if (recordingSessionIdRef.current !== sessionId) return;
           const nextTranscript = transcript.trim();
           speechResultAppliedRef.current = true;
-          applyReadResult(compareSpeechToTarget(nextTranscript, stage.answer), nextTranscript);
+          applyReadResult(compareSpeechToTarget(nextTranscript, readAnswer), nextTranscript);
           speechRecognitionRef.current = null;
         },
       });
@@ -1230,12 +1269,18 @@ export default function Home() {
                   {readProvider.badge}
                 </span>
                 <p className="practiceTypingHint">
-                  {isSentenceReadStage ? "先点完整句子听标准发音" : "先点单词卡片听标准发音"}
+                  {isSentenceReadStage
+                    ? "先点完整句子听标准发音"
+                    : isPhraseReadStage
+                      ? "先点单词卡片，跟读这组词"
+                      : "先点单词卡片听标准发音"}
                 </p>
                 <TokenBuilder
-                  className={`readPracticeToken ${isSentenceReadStage ? "sentenceReadToken" : ""}`}
+                  className={`readPracticeToken ${isSentenceReadStage ? "sentenceReadToken" : ""} ${isPhraseReadStage ? "phraseReadToken" : ""}`}
                   selectedTokens={revealedTokens}
                   translation={stage.chinese}
+                  speechText={readAnswer}
+                  focusIndex={readFocusIndex}
                 />
                 <button
                   type="button"
