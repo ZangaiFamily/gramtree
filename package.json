@@ -42,8 +42,5 @@
     "@types/react-dom": "^19.2.3",
     "gh-pages": "^6.3.0",
     "typescript": "^5.9.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["core-js", "sharp"]
   }
 }
