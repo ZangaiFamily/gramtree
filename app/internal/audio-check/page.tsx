@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { speakText } from "@/lib/speech";
 import {
+  extractSpeechWords,
   getDefaultReadPracticeProviderCode,
   getReadPracticeProvider,
   type ReadPracticeProvider,
@@ -62,10 +63,6 @@ const initialResults: TestResult[] = [
     detail: "录音结束后会出现回放控件。",
   },
 ];
-
-function normalizeSpeech(value: string) {
-  return value.toLowerCase().replace(/[^a-z'\s]/g, " ").replace(/\s+/g, " ").trim();
-}
 
 export default function AudioCheckPage() {
   const router = useRouter();
@@ -320,8 +317,7 @@ export default function AudioCheckPage() {
         },
         onEnd: (transcript) => {
           if (recordingSessionIdRef.current !== sessionId) return;
-          const normalized = normalizeSpeech(transcript.trim());
-          const matched = normalized.split(" ").includes(targetWord);
+          const matched = extractSpeechWords(transcript).includes(targetWord);
           applyRecognitionResult(transcript.trim(), matched);
           speechRecognitionRef.current = null;
         },

@@ -1,3 +1,76 @@
+export function normalizeSttText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u02bc`]/g, "'")
+    .replace(/[^a-z'\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// SpeechRecognition frequently collapses spoken word pairs into a contraction
+// (e.g. "I am" -> "I'm"), which would never match the separate target tokens.
+// Expanding them back into individual words keeps read-aloud matching robust.
+const contractionExpansions: Record<string, string[]> = {
+  "i'm": ["i", "am"],
+  "i've": ["i", "have"],
+  "i'll": ["i", "will"],
+  "i'd": ["i", "would"],
+  "you're": ["you", "are"],
+  "you've": ["you", "have"],
+  "you'll": ["you", "will"],
+  "you'd": ["you", "would"],
+  "we're": ["we", "are"],
+  "we've": ["we", "have"],
+  "we'll": ["we", "will"],
+  "we'd": ["we", "would"],
+  "they're": ["they", "are"],
+  "they've": ["they", "have"],
+  "they'll": ["they", "will"],
+  "they'd": ["they", "would"],
+  "he's": ["he", "is"],
+  "he'll": ["he", "will"],
+  "he'd": ["he", "would"],
+  "she's": ["she", "is"],
+  "she'll": ["she", "will"],
+  "she'd": ["she", "would"],
+  "it's": ["it", "is"],
+  "it'll": ["it", "will"],
+  "that's": ["that", "is"],
+  "there's": ["there", "is"],
+  "here's": ["here", "is"],
+  "what's": ["what", "is"],
+  "who's": ["who", "is"],
+  "where's": ["where", "is"],
+  "let's": ["let", "us"],
+  "don't": ["do", "not"],
+  "doesn't": ["does", "not"],
+  "didn't": ["did", "not"],
+  "isn't": ["is", "not"],
+  "aren't": ["are", "not"],
+  "wasn't": ["was", "not"],
+  "weren't": ["were", "not"],
+  "haven't": ["have", "not"],
+  "hasn't": ["has", "not"],
+  "hadn't": ["had", "not"],
+  "won't": ["will", "not"],
+  "wouldn't": ["would", "not"],
+  "couldn't": ["could", "not"],
+  "shouldn't": ["should", "not"],
+  "can't": ["can", "not"],
+  "cannot": ["can", "not"],
+  "mustn't": ["must", "not"],
+};
+
+export function expandSpeechContractions(words: string[]) {
+  return words.flatMap((word) => contractionExpansions[word] ?? [word]);
+}
+
+export function extractSpeechWords(value: string) {
+  const normalized = normalizeSttText(value);
+  if (!normalized) return [];
+  return expandSpeechContractions(normalized.split(" "));
+}
+
 const cmuPronunciations: Record<string, string[]> = {
   be: ["B IY"],
   bee: ["B IY"],

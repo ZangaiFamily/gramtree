@@ -6,13 +6,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelSpeech, speakText } from "@/lib/speech";
 import { enableMobileVConsole } from "@/lib/enableMobileVConsole";
 import {
-  compareSpeechToTarget,
+  extractSpeechWords,
   getDefaultReadPracticeProviderCode,
   getReadPracticeProvider,
+  normalizeSttText,
   type ReadPracticeProvider,
   type ReadPracticeProviderCode,
   type SpeechRecognitionSession,
 } from "@/lib/stt";
+import { samePronunciation } from "@/lib/stt/pronunciation";
 
 type Token = {
   word: string;
@@ -36,6 +38,16 @@ type ClassicSentence = {
   text: string;
   chinese: string;
 };
+
+type DictationSegment =
+  | { kind: "word"; text: string; inputIndex: number }
+  | { kind: "static"; text: string };
+
+type InterviewTemplateCode = "technical" | "designer" | "product";
+
+type SentenceImportResult =
+  | { ok: true; sentences: ClassicSentence[] }
+  | { ok: false; message: string };
 
 type ReadResult = "recognized" | "try-again" | "not-matched";
 type PracticeMode = "read" | "dictation";
@@ -286,8 +298,304 @@ const weakReadWords = new Set([
   "a", "an", "the", "to", "of", "in", "on", "with", "for", "by", "and", "is", "are", "was", "were",
 ]);
 
+const sentenceImportExample = `[
+  { "en": "Knowledge is power", "cn": "知识就是力量。" },
+  { "en": "Practice makes perfect" }
+]`;
+const importedSentenceStorageKey = "gramtree.importedSentences.v1";
+const gramtreeImportUrl = "https://zangaifamily.github.io/gramtree/";
+const interviewImportTemplates: Array<{
+  code: InterviewTemplateCode;
+  label: string;
+  role: string;
+  focus: string[];
+}> = [
+  {
+    code: "technical",
+    label: "导入技术面试",
+    role: "technical interview candidate",
+    focus: [
+      "self introduction",
+      "technical background",
+      "work experience",
+      "strengths",
+      "challenges",
+      "responsibilities",
+      "project value",
+      "STAR answers",
+      "SCQA experience framing",
+    ],
+  },
+  {
+    code: "designer",
+    label: "导入设计师面试",
+    role: "product designer or UX/UI designer interview candidate",
+    focus: [
+      "design background",
+      "portfolio introduction",
+      "user research",
+      "design decisions",
+      "cross-functional collaboration",
+      "strengths",
+      "challenges",
+      "project impact",
+      "STAR answers",
+      "SCQA case framing",
+    ],
+  },
+  {
+    code: "product",
+    label: "导入产品经理面试",
+    role: "product manager interview candidate",
+    focus: [
+      "product background",
+      "user and business context",
+      "prioritization",
+      "roadmap ownership",
+      "stakeholder communication",
+      "metrics",
+      "trade-offs",
+      "project value",
+      "STAR answers",
+      "SCQA product case framing",
+    ],
+  },
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function chooseRandomSentence(library: ClassicSentence[], currentSentence?: ClassicSentence) {
+  const availableSentences = currentSentence && library.length > 1
+    ? library.filter((sentence) =>
+      sentence.text !== currentSentence.text || sentence.chinese !== currentSentence.chinese
+    )
+    : library;
+  return availableSentences[Math.floor(Math.random() * availableSentences.length)] ?? null;
+}
+
+function parseStoredSentenceLibrary(rawValue: string | null) {
+  if (!rawValue) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) return null;
+
+  const sentences: ClassicSentence[] = [];
+  for (const item of parsed) {
+    if (!isRecord(item)) return null;
+    const rawText = typeof item.text === "string" ? item.text : typeof item.en === "string" ? item.en : "";
+    const text = rawText.trim().replace(/\s+/g, " ");
+    if (sentenceWords(text).length === 0) return null;
+
+    const rawChinese = typeof item.chinese === "string"
+      ? item.chinese
+      : typeof item.cn === "string"
+        ? item.cn
+        : "";
+    sentences.push({
+      text,
+      chinese: rawChinese.trim() || "未提供中文翻译",
+    });
+  }
+
+  return sentences.length > 0 ? sentences : null;
+}
+
+function loadImportedSentenceLibrary() {
+  try {
+    const storedSentences = parseStoredSentenceLibrary(window.localStorage.getItem(importedSentenceStorageKey));
+    if (!storedSentences) {
+      window.localStorage.removeItem(importedSentenceStorageKey);
+    }
+    return storedSentences;
+  } catch {
+    return null;
+  }
+}
+
+function saveImportedSentenceLibrary(sentences: ClassicSentence[]) {
+  try {
+    window.localStorage.setItem(importedSentenceStorageKey, JSON.stringify(sentences));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeImportedSentenceLibrary() {
+  try {
+    window.localStorage.removeItem(importedSentenceStorageKey);
+  } catch {
+    // Storage can be unavailable in private browsing modes.
+  }
+}
+
+function getInterviewTemplate(code: InterviewTemplateCode) {
+  return interviewImportTemplates.find((template) => template.code === code);
+}
+
+function createInterviewImportPrompt(template: (typeof interviewImportTemplates)[number]) {
+  return [
+    `You are a professional English interview coach and an experienced ${template.role}.`,
+    "Generate practical English interview practice sentences for Gramtree.",
+    "",
+    "Content goals:",
+    ...template.focus.map((item) => `- ${item}`),
+    "",
+    "Requirements:",
+    "- Include natural interview statements and answer fragments, not long paragraphs.",
+    "- Cover introduction, background, work experience, strengths, challenges, responsibilities, and project value where relevant.",
+    "- Use STAR for behavioral examples: Situation, Task, Action, Result.",
+    "- Use SCQA for experience framing: Situation, Complication, Question, Answer.",
+    "- Make each English sentence useful for speaking practice.",
+    "- Provide concise Chinese translations.",
+    "",
+    "Output format:",
+    "- Output valid JSON only. Do not use Markdown, explanations, comments, or code fences.",
+    "- The top-level value must be an array.",
+    "- Each item must contain `en`; `cn` is optional but preferred.",
+    "- Use exactly this shape:",
+    `[{ "en": "English interview sentence", "cn": "中文翻译" }]`,
+    "- Do not output any other fields.",
+    "",
+    "Generate 30 items.",
+    "After generating the final JSON, write the final JSON to the clipboard if your environment supports clipboard access.",
+    `I will paste the JSON into the import box at ${gramtreeImportUrl}.`,
+  ].join("\n");
+}
+
+async function copyTextToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute("readonly", "");
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return copied;
+  }
+}
+
+function createSentenceImportPrompt(rawInput: string) {
+  return [
+    "请把下面的内容整理成 Gramtree 可导入的 JSON。",
+    "只输出合法 JSON，不要 Markdown、解释或代码块。",
+    "预期格式是数组，每项只有 en 和 cn：",
+    `[{ "en": "English sentence", "cn": "中文翻译（可选）" }]`,
+    "规则：en 必须是非空字符串；cn 可省略或为空字符串；不要输出其它字段。",
+    "整理完成后，请把最终 JSON 写入剪贴板，方便我直接粘贴回导入框。",
+    "",
+    "待整理内容：",
+    rawInput.trim() || "（把原始句子粘贴在这里）",
+  ].join("\n");
+}
+
+function parseSentenceImport(rawInput: string): SentenceImportResult {
+  const source = rawInput.trim();
+  if (!source) {
+    return { ok: false, message: "请输入 JSON 内容。" };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知解析错误";
+    return { ok: false, message: `JSON 无法解析：${message}` };
+  }
+
+  const items = Array.isArray(parsed)
+    ? parsed
+    : isRecord(parsed) && Array.isArray(parsed.sentences)
+      ? parsed.sentences
+      : isRecord(parsed)
+        ? [parsed]
+        : null;
+
+  if (!items) {
+    return { ok: false, message: "顶层必须是句子对象、句子数组，或包含 sentences 数组的对象。" };
+  }
+
+  if (items.length === 0) {
+    return { ok: false, message: "至少需要导入 1 条句子。" };
+  }
+
+  const sentences: ClassicSentence[] = [];
+  for (const [index, item] of items.entries()) {
+    const line = index + 1;
+    if (!isRecord(item)) {
+      return { ok: false, message: `第 ${line} 项必须是对象。` };
+    }
+
+    const en = item.en;
+    if (typeof en !== "string" || !en.trim()) {
+      return { ok: false, message: `第 ${line} 项缺少必填的 en 字符串。` };
+    }
+
+    const cn = item.cn;
+    if (cn !== undefined && cn !== null && typeof cn !== "string") {
+      return { ok: false, message: `第 ${line} 项的 cn 必须是字符串，或直接省略。` };
+    }
+
+    const text = en.trim().replace(/\s+/g, " ");
+    if (sentenceWords(text).length === 0) {
+      return { ok: false, message: `第 ${line} 项的 en 至少需要包含一个英文单词。` };
+    }
+
+    sentences.push({
+      text,
+      chinese: typeof cn === "string" && cn.trim() ? cn.trim() : "未提供中文翻译",
+    });
+  }
+
+  return { ok: true, sentences };
+}
+
 function sentenceWords(sentence: string) {
   return sentence.match(/[A-Za-z']+/g) ?? [];
+}
+
+function createDictationSegments(sentence: string): DictationSegment[] {
+  const segments: DictationSegment[] = [];
+  const matches = Array.from(sentence.matchAll(/[A-Za-z']+/g));
+  let cursor = 0;
+  let inputIndex = 0;
+
+  for (const match of matches) {
+    const word = match[0];
+    const start = match.index ?? 0;
+    if (start > cursor) {
+      segments.push({ kind: "static", text: sentence.slice(cursor, start) });
+    }
+    segments.push({ kind: "word", text: word, inputIndex });
+    inputIndex += 1;
+    cursor = start + word.length;
+  }
+
+  if (cursor < sentence.length) {
+    segments.push({ kind: "static", text: sentence.slice(cursor) });
+  }
+
+  return segments;
+}
+
+function countDictationInputs(sentence: string) {
+  return createDictationSegments(sentence).filter((segment) => segment.kind === "word").length;
 }
 
 function inferTokenMeta(word: string): Omit<Token, "word"> {
@@ -393,18 +701,6 @@ function createReadTokenIndexes(tokens: Token[], index: number) {
 
 function createStages(tokens: Token[], sentence: ClassicSentence): Stage[] {
   return [
-    ...tokens.map((token, index) => {
-      const readTokenIndexes = createReadTokenIndexes(tokens, index);
-      const readAnswer = readTokenIndexes?.map((tokenIndex) => tokens[tokenIndex].word).join(" ");
-      return {
-        answer: token.word,
-        chinese: token.chinese,
-        tokenIndexes: [index],
-        readAnswer,
-        readTokenIndexes,
-        readFocusIndex: readTokenIndexes?.indexOf(index),
-      };
-    }),
     {
       answer: sentence.text,
       chinese: sentence.chinese,
@@ -423,9 +719,45 @@ function isMobileUserAgent(userAgent: string) {
 
 function resultLabel(result: ReadResult | null) {
   if (result === "recognized") return "✅ 识别成功";
-  if (result === "try-again") return "⚠️ 再试一次";
+  if (result === "try-again") return "⚠️ 继续读剩余单词";
   if (result === "not-matched") return "❌ 未匹配";
   return "点击跟读";
+}
+
+function transcriptWordsOf(value: string) {
+  return extractSpeechWords(value);
+}
+
+function findNewReadMatches({
+  transcript,
+  tokens,
+  tokenIndexes,
+  recognizedIndexes,
+}: {
+  transcript: string;
+  tokens: Token[];
+  tokenIndexes: number[];
+  recognizedIndexes: number[];
+}) {
+  const unmatchedTranscriptWords = transcriptWordsOf(transcript);
+  const recognizedSet = new Set(recognizedIndexes);
+  const newMatches: number[] = [];
+
+  tokenIndexes.forEach((tokenIndex) => {
+    if (recognizedSet.has(tokenIndex)) return;
+
+    const targetWord = normalizeSttText(tokens[tokenIndex]?.word ?? "");
+    if (!targetWord) return;
+
+    const matchIndex = unmatchedTranscriptWords.findIndex((word) => samePronunciation(word, targetWord));
+    if (matchIndex === -1) return;
+
+    unmatchedTranscriptWords.splice(matchIndex, 1);
+    recognizedSet.add(tokenIndex);
+    newMatches.push(tokenIndex);
+  });
+
+  return newMatches;
 }
 
 function voiceLevelBand(level: number) {
@@ -518,16 +850,22 @@ function TokenBuilder({
   translation,
   enableWordSpeech = true,
   promptText = "按鼠标任意键开始造这个句子",
+  speechMode = "word",
   speechText,
   focusIndex,
+  tokenIndexes,
+  recognizedTokenIndexes,
 }: {
   className?: string;
   selectedTokens: Token[];
   translation: string;
   enableWordSpeech?: boolean;
   promptText?: string;
+  speechMode?: "word" | "full";
   speechText?: string;
   focusIndex?: number;
+  tokenIndexes?: number[];
+  recognizedTokenIndexes?: Set<number>;
 }) {
   return (
     <section className={`wordInspector homeWordInspector ${className}`} aria-label="gramtree 造句器">
@@ -535,9 +873,9 @@ function TokenBuilder({
       <div className="wordStrip homeWordStrip">
         {selectedTokens.map((token, index) => (
           <div
-            className={`builderToken homeBuilderToken ${focusIndex !== undefined && index !== focusIndex ? "contextToken" : ""}`}
+            className={`builderToken homeBuilderToken ${focusIndex !== undefined && index !== focusIndex ? "contextToken" : ""} ${recognizedTokenIndexes?.has(tokenIndexes?.[index] ?? index) ? "recognizedToken" : ""}`}
             key={`${token.word}-${index}`}
-            onClick={enableWordSpeech ? () => speakWord(speechText ?? token.word) : undefined}
+            onClick={enableWordSpeech ? () => speakWord(speechMode === "full" ? speechText ?? token.word : token.word) : undefined}
           >
             <span className="phoneticBadge homePhoneticBadge">{token.phonetic}</span>
             <span className="wordBubbleStack">
@@ -545,6 +883,7 @@ function TokenBuilder({
                 className={`wordBlock homeWordBlock ${token.fillTone}`}
                 style={{ "--word-length": token.word.length } as CSSProperties}
               >
+                <span className="wordTextMeasure homeWordText" aria-hidden="true">{token.word}</span>
                 <span className="wordText homeWordText">{token.word}</span>
               </span>
               <span className={`grammarUnderline ${token.underlineTone}`} />
@@ -563,6 +902,15 @@ function TokenBuilder({
 
 export default function Home() {
   const [selectedSentence, setSelectedSentence] = useState<ClassicSentence>(sentenceLibrary[0]);
+  const [activeSentenceLibrary, setActiveSentenceLibrary] = useState<ClassicSentence[]>(sentenceLibrary);
+  const [isCustomSentenceLibrary, setIsCustomSentenceLibrary] = useState(false);
+  const [sentenceImportText, setSentenceImportText] = useState("");
+  const [importSummary, setImportSummary] = useState("");
+  const [importErrorMessage, setImportErrorMessage] = useState("");
+  const [importHelperPrompt, setImportHelperPrompt] = useState("");
+  const [copyPromptStatus, setCopyPromptStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [selectedInterviewTemplate, setSelectedInterviewTemplate] = useState<InterviewTemplateCode | "">("");
+  const [templateCopyStatus, setTemplateCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [isMobile, setIsMobile] = useState(false);
   const [isPractice, setIsPractice] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("dictation");
@@ -578,6 +926,7 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [recognizedText, setRecognizedText] = useState("");
   const [readResult, setReadResult] = useState<ReadResult | null>(null);
+  const [recognizedReadIndexes, setRecognizedReadIndexes] = useState<number[][]>(() => [[]]);
   const [recordingUrls, setRecordingUrls] = useState<(string | null)[]>([]);
   const [recordingError, setRecordingError] = useState("");
   const [voiceBand, setVoiceBand] = useState(0);
@@ -595,11 +944,16 @@ export default function Home() {
   const recordingSessionIdRef = useRef(0);
   const shouldEvaluateRecordingRef = useRef(false);
   const readButtonPointerToggleAtRef = useRef(0);
+  const importPromptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
   const stages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
   const stage = stages[stageIndex];
-  const stageWords = useMemo(() => stage.answer.split(" "), [stage.answer]);
+  const dictationSegments = useMemo(() => createDictationSegments(stage.answer), [stage.answer]);
+  const dictationWords = useMemo(
+    () => dictationSegments.filter((segment): segment is Extract<DictationSegment, { kind: "word" }> => segment.kind === "word"),
+    [dictationSegments],
+  );
   const isReadMode = practiceMode === "read";
   const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
   const readProviderRef = useRef<ReadPracticeProvider>(readProvider);
@@ -608,7 +962,15 @@ export default function Home() {
   const readFocusIndex = stage.readFocusIndex;
   const isSentenceReadStage = stage.tokenIndexes.length > 1;
   const isPhraseReadStage = !isSentenceReadStage && readTokenIndexes.length > 1;
-  const submittedAnswer = wordInputs.join(" ");
+  const recognizedReadIndexSet = useMemo(
+    () => new Set(recognizedReadIndexes[stageIndex] ?? []),
+    [recognizedReadIndexes, stageIndex],
+  );
+  const recognizedReadCount = readTokenIndexes.filter((tokenIndex) => recognizedReadIndexSet.has(tokenIndex)).length;
+  const submittedAnswer = dictationSegments
+    .map((segment) => segment.kind === "word" ? wordInputs[segment.inputIndex] ?? "" : segment.text)
+    .join("");
+  const isStageRevealed = stats.revealedByStage[stageIndex] ?? false;
   const revealedTokens = useMemo(
     () => (isReadMode ? readTokenIndexes : stage.tokenIndexes).map((index) => tokens[index]),
     [isReadMode, readTokenIndexes, stage.tokenIndexes, tokens],
@@ -632,8 +994,11 @@ export default function Home() {
       autoStartModeRef.current = "dictation";
       window.history.replaceState(null, "", window.location.pathname);
     }
-    const nextSentence = sentenceLibrary[Math.floor(Math.random() * sentenceLibrary.length)];
-    setSelectedSentence(nextSentence);
+    const importedSentences = loadImportedSentenceLibrary();
+    const nextLibrary = importedSentences ?? sentenceLibrary;
+    setActiveSentenceLibrary(nextLibrary);
+    setIsCustomSentenceLibrary(Boolean(importedSentences));
+    setSelectedSentence(chooseRandomSentence(nextLibrary) ?? nextLibrary[0]);
     setIsMobile(isMobileUserAgent(window.navigator.userAgent));
     setReadProviderCode(getDefaultReadPracticeProviderCode());
   }, []);
@@ -656,6 +1021,7 @@ export default function Home() {
     setPerfectStreak(null);
     setRecognizedText("");
     setReadResult(null);
+    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
     setRecordingError("");
     setRecordingUrls((current) => {
       current.forEach((url) => {
@@ -663,7 +1029,7 @@ export default function Home() {
       });
       return Array.from({ length: stages.length }, () => null);
     });
-  }, [stages.length, selectedSentence.text]);
+  }, [stages.length, selectedSentence.chinese, selectedSentence.text]);
 
   useEffect(() => {
     finishReadRecording({ abortRecognition: true, evaluate: false });
@@ -714,11 +1080,116 @@ export default function Home() {
     setShowResultModal(false);
     setIsPractice(true);
     setStageIndex(0);
-    setWordInputs(Array.from({ length: stages[0].answer.split(" ").length }, () => ""));
+    setWordInputs(Array.from({ length: countDictationInputs(stages[0].answer) }, () => ""));
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
     setRecognizedText("");
+    setReadResult(null);
+    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
+  }
+
+  function pickRandomSentence(library = activeSentenceLibrary) {
+    const nextSentence = chooseRandomSentence(library, selectedSentence);
+    if (nextSentence) setSelectedSentence(nextSentence);
+  }
+
+  function handleImportTextChange(value: string) {
+    setSentenceImportText(value);
+    setCopyPromptStatus("idle");
+    setTemplateCopyStatus("idle");
+  }
+
+  function loadImportExample() {
+    setSentenceImportText(sentenceImportExample);
+    setImportErrorMessage("");
+    setImportHelperPrompt("");
+    setCopyPromptStatus("idle");
+    setTemplateCopyStatus("idle");
+  }
+
+  async function handleInterviewTemplateChange(value: string) {
+    if (!value) {
+      setSelectedInterviewTemplate("");
+      setTemplateCopyStatus("idle");
+      return;
+    }
+
+    const template = getInterviewTemplate(value as InterviewTemplateCode);
+    if (!template) return;
+
+    setSelectedInterviewTemplate(template.code);
+    const prompt = createInterviewImportPrompt(template);
+    const copied = await copyTextToClipboard(prompt);
+    setTemplateCopyStatus(copied ? "copied" : "failed");
+    setImportErrorMessage("");
+    setImportHelperPrompt("");
+    setCopyPromptStatus("idle");
+    setImportSummary(
+      copied
+        ? `「${template.label}」提示词已写入剪贴板。把它发给 AI，拿到 JSON 后打开 ${gramtreeImportUrl} 粘贴导入。`
+        : `无法自动复制「${template.label}」提示词，请重试或检查浏览器剪贴板权限。`,
+    );
+  }
+
+  async function copySelectedInterviewTemplatePrompt() {
+    if (!selectedInterviewTemplate) return;
+    await handleInterviewTemplateChange(selectedInterviewTemplate);
+  }
+
+  function handleImportSentences() {
+    const prompt = createSentenceImportPrompt(sentenceImportText);
+    const result = parseSentenceImport(sentenceImportText);
+
+    if (!result.ok) {
+      setImportErrorMessage(result.message);
+      setImportHelperPrompt(prompt);
+      setImportSummary("");
+      setCopyPromptStatus("idle");
+      return;
+    }
+
+    const savedToStorage = saveImportedSentenceLibrary(result.sentences);
+    setActiveSentenceLibrary(result.sentences);
+    setIsCustomSentenceLibrary(true);
+    setSelectedSentence(result.sentences[0]);
+    setImportSummary(
+      savedToStorage
+        ? `已导入并保存 ${result.sentences.length} 句。`
+        : `已导入 ${result.sentences.length} 句，但当前浏览器无法保存到 localStorage。`,
+    );
+    setImportErrorMessage("");
+    setImportHelperPrompt("");
+    setCopyPromptStatus("idle");
+  }
+
+  function clearImportedSentences() {
+    removeImportedSentenceLibrary();
+    setActiveSentenceLibrary(sentenceLibrary);
+    setIsCustomSentenceLibrary(false);
+    pickRandomSentence(sentenceLibrary);
+    setSentenceImportText("");
+    setImportSummary("已清除导入句子，恢复默认句库。");
+    setImportErrorMessage("");
+    setImportHelperPrompt("");
+    setCopyPromptStatus("idle");
+  }
+
+  async function copyImportHelperPrompt() {
+    if (!importHelperPrompt) return;
+
+    const copied = await copyTextToClipboard(importHelperPrompt);
+    if (copied) {
+      setCopyPromptStatus("copied");
+      return;
+    }
+
+    const promptNode = importPromptRef.current;
+    if (promptNode) {
+      promptNode.focus();
+      promptNode.select();
+    }
+    setCopyPromptStatus("failed");
   }
 
   function enterReadPractice() {
@@ -742,9 +1213,10 @@ export default function Home() {
     if (stageIndex < stages.length - 1) {
       const nextStageIndex = stageIndex + 1;
       setStageIndex(nextStageIndex);
-      setWordInputs(Array.from({ length: stages[nextStageIndex].answer.split(" ").length }, () => ""));
+      setWordInputs(Array.from({ length: countDictationInputs(stages[nextStageIndex].answer) }, () => ""));
       setActiveInputIndex(0);
       setStatus("typing");
+      setRecognizedReadIndexes((current) => current.map((indexes, index) => index === nextStageIndex ? [] : indexes));
     } else {
       setStatus("success");
       openResultModal();
@@ -790,7 +1262,7 @@ export default function Home() {
     }));
     setStatus("error");
     window.setTimeout(() => {
-      setWordInputs(Array.from({ length: stageWords.length }, () => ""));
+      setWordInputs(Array.from({ length: dictationWords.length }, () => ""));
       setActiveInputIndex(0);
       setStatus("typing");
     }, 300);
@@ -813,8 +1285,6 @@ export default function Home() {
         ),
       };
     });
-    setWordInputs(stageWords);
-    setActiveInputIndex(stageWords.length - 1);
     setStatus("typing");
   }
 
@@ -896,7 +1366,7 @@ export default function Home() {
       }
       speechRecognitionRef.current = null;
     } else if (evaluate && readProviderRef.current.mode === "streaming" && !speechResultAppliedRef.current) {
-      applyReadResult("not-matched", "");
+      applyReadResult("");
     }
 
     if (recorder) {
@@ -909,8 +1379,32 @@ export default function Home() {
     }
   }
 
-  function applyReadResult(result: ReadResult, transcript: string) {
+  function applyReadResult(transcript: string) {
     setRecognizedText(transcript);
+
+    const currentRecognizedIndexes = recognizedReadIndexes[stageIndex] ?? [];
+    const newMatches = findNewReadMatches({
+      transcript,
+      tokens,
+      tokenIndexes: readTokenIndexes,
+      recognizedIndexes: currentRecognizedIndexes,
+    });
+    const nextRecognizedIndexes = Array.from(new Set([...currentRecognizedIndexes, ...newMatches]));
+    const result: ReadResult =
+      readTokenIndexes.every((tokenIndex) => nextRecognizedIndexes.includes(tokenIndex))
+        ? "recognized"
+        : newMatches.length > 0
+          ? "try-again"
+          : "not-matched";
+
+    if (newMatches.length > 0) {
+      setRecognizedReadIndexes((current) => {
+        const next = [...current];
+        next[stageIndex] = nextRecognizedIndexes;
+        return next;
+      });
+    }
+
     setReadResult(result);
 
     if (result === "recognized") {
@@ -932,6 +1426,17 @@ export default function Home() {
         });
       }
       setStatus("success");
+      return;
+    }
+
+    if (result === "try-again") {
+      setStats((current) => ({
+        ...current,
+        attemptsByStage: current.attemptsByStage.map((attempts, index) =>
+          index === stageIndex ? attempts + 1 : attempts,
+        ),
+      }));
+      setStatus("typing");
       return;
     }
 
@@ -1025,7 +1530,7 @@ export default function Home() {
           if (recordingSessionIdRef.current !== sessionId) return;
           const nextTranscript = transcript.trim();
           speechResultAppliedRef.current = true;
-          applyReadResult(compareSpeechToTarget(nextTranscript, readAnswer), nextTranscript);
+          applyReadResult(nextTranscript);
           speechRecognitionRef.current = null;
         },
       });
@@ -1079,6 +1584,7 @@ export default function Home() {
     setPerfectStreak(null);
     setRecognizedText("");
     setReadResult(null);
+    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
     setRecordingError("");
   }
 
@@ -1155,7 +1661,7 @@ export default function Home() {
 
       if (event.key === "Tab") {
         event.preventDefault();
-        if (wordInputs[activeInputIndex]?.length && activeInputIndex < stageWords.length - 1) {
+        if (wordInputs[activeInputIndex]?.length && activeInputIndex < dictationWords.length - 1) {
           setActiveInputIndex((current) => current + 1);
         }
         return;
@@ -1173,7 +1679,7 @@ export default function Home() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeInputIndex, isPractice, practiceMode, showResultModal, stage.answer, stageIndex, stageWords, stats.attemptsByStage, stats.revealedByStage, status, submittedAnswer, wordInputs]);
+  }, [activeInputIndex, dictationWords.length, isPractice, practiceMode, showResultModal, stage.answer, stageIndex, stats.attemptsByStage, stats.revealedByStage, status, submittedAnswer, wordInputs]);
 
   const finishedAt = stats.finishedAt ?? Date.now();
   const duration = formatDuration(finishedAt - stats.startedAt);
@@ -1234,15 +1740,97 @@ export default function Home() {
             promptText="选择练习模式"
           />
           <div className="homePracticeModes" aria-label="练习模式">
-            <button type="button" className="homePracticeMode primaryMode" onClick={enterReadPractice}>
-              <strong>听读</strong>
-              <span>听标准发音，再按下麦克风跟读</span>
-            </button>
-            <button type="button" className="homePracticeMode" onClick={enterDictationPractice}>
+            <button type="button" className="homePracticeMode primaryMode" onClick={enterDictationPractice}>
               <strong>听写</strong>
               <span>{isMobile ? "看中文提示输入英文" : "用键盘输入英文，随时播放发音"}</span>
             </button>
+            <button type="button" className="homePracticeMode" onClick={enterReadPractice}>
+              <strong>听读</strong>
+              <span>听标准发音，再按下麦克风跟读</span>
+            </button>
           </div>
+          <section className="sentenceImportPanel" aria-label="JSON 导入句子">
+            <div className="sentenceImportHeader">
+              <div>
+                <strong>JSON 导入</strong>
+                <span>{isCustomSentenceLibrary ? "自定义句库" : "默认句库"} · {activeSentenceLibrary.length} 句</span>
+              </div>
+              <div className="sentenceImportHeaderActions">
+                <button type="button" onClick={loadImportExample}>
+                  示例
+                </button>
+                <button type="button" onClick={() => pickRandomSentence()}>
+                  换新句
+                </button>
+              </div>
+            </div>
+            <div className="sentenceTemplateTools" aria-label="预设导入模板">
+              <label className="sentenceTemplateField">
+                <span>预设模板</span>
+                <select
+                  value={selectedInterviewTemplate}
+                  onChange={(event) => void handleInterviewTemplateChange(event.target.value)}
+                >
+                  <option value="">选择面试模板</option>
+                  {interviewImportTemplates.map((template) => (
+                    <option key={template.code} value={template.code}>
+                      {template.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={copySelectedInterviewTemplatePrompt}
+                disabled={!selectedInterviewTemplate}
+              >
+                {templateCopyStatus === "copied" ? "已复制模板提示词" : "复制模板提示词"}
+              </button>
+            </div>
+            <textarea
+              className="sentenceImportTextarea"
+              aria-label="导入句子 JSON"
+              value={sentenceImportText}
+              onChange={(event) => handleImportTextChange(event.target.value)}
+              placeholder={sentenceImportExample}
+              spellCheck={false}
+            />
+            <div className="sentenceImportActions">
+              <button type="button" className="primaryImportButton" onClick={handleImportSentences}>
+                导入句子
+              </button>
+              {isCustomSentenceLibrary ? (
+                <button type="button" onClick={clearImportedSentences}>
+                  清除导入
+                </button>
+              ) : null}
+            </div>
+            {importSummary ? <p className="sentenceImportSummary">{importSummary}</p> : null}
+            {importErrorMessage ? (
+              <section className="sentenceImportAlert" role="alert" aria-live="assertive">
+                <button
+                  type="button"
+                  className="copyImportPromptButton"
+                  onClick={copyImportHelperPrompt}
+                >
+                  {copyPromptStatus === "copied" ? "已复制" : "复制提示词"}
+                </button>
+                <strong>导入失败</strong>
+                <p>{importErrorMessage}</p>
+                {copyPromptStatus === "failed" ? (
+                  <p className="sentenceImportError">复制失败，请直接选中下面的提示词。</p>
+                ) : null}
+                <textarea
+                  ref={importPromptRef}
+                  className="importPromptTextarea"
+                  aria-label="AI 整理提示词"
+                  readOnly
+                  value={importHelperPrompt}
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              </section>
+            ) : null}
+          </section>
         </div>
         </>
       ) : (
@@ -1279,8 +1867,11 @@ export default function Home() {
                   className={`readPracticeToken ${isSentenceReadStage ? "sentenceReadToken" : ""} ${isPhraseReadStage ? "phraseReadToken" : ""}`}
                   selectedTokens={revealedTokens}
                   translation={stage.chinese}
+                  speechMode="full"
                   speechText={readAnswer}
                   focusIndex={readFocusIndex}
+                  tokenIndexes={readTokenIndexes}
+                  recognizedTokenIndexes={recognizedReadIndexSet}
                 />
                 <button
                   type="button"
@@ -1316,6 +1907,9 @@ export default function Home() {
                 <div className={`readResultBadge ${readResult ?? "idle"}`}>
                   {resultLabel(readResult)}
                 </div>
+                <p className="readProgressText">
+                  已识别 {recognizedReadCount}/{readTokenIndexes.length}
+                </p>
                 {recognizedText ? (
                   <p className="recognizedText">听到：<strong>{recognizedText}</strong></p>
                 ) : null}
@@ -1328,22 +1922,66 @@ export default function Home() {
                 ) : null}
               </div>
             ) : status === "success" ? (
-              <TokenBuilder className="practiceResult" selectedTokens={revealedTokens} translation={stage.chinese} />
+              <TokenBuilder
+                className="practiceResult"
+                selectedTokens={revealedTokens}
+                translation={stage.chinese}
+                speechMode="word"
+              />
             ) : (
               <div className={`practiceInputStage ${status === "error" ? "inputError" : ""}`}>
                 <h1>{stage.chinese}</h1>
                 <p className="practiceTypingHint">在键盘上输入</p>
                 <div className="practiceWordInputs" aria-label="Word input slots">
-                  {stageWords.map((word, index) => (
-                    <div
-                      className={`practiceWordInput ${index === activeInputIndex ? "activeWordInput" : ""}`}
-                      key={`${word}-${index}`}
-                      onClick={() => setActiveInputIndex(index)}
-                    >
-                      <span>{wordInputs[index]}</span>
-                      <i aria-hidden="true" />
-                    </div>
-                  ))}
+                  {dictationSegments.map((segment, segmentIndex) => {
+                    if (segment.kind === "static") {
+                      return (
+                        <span className="practiceStaticText" key={`static-${segmentIndex}`} aria-hidden="true">
+                          {segment.text}
+                        </span>
+                      );
+                    }
+
+                    const inputValue = wordInputs[segment.inputIndex] ?? "";
+                    const wordCharacters = Array.from(segment.text);
+                    const inputCharacters = Array.from(inputValue);
+                    const overflowCharacters = inputCharacters.slice(wordCharacters.length).join("");
+                    return (
+                      <div
+                        className={`practiceWordInput ${segment.inputIndex === activeInputIndex ? "activeWordInput" : ""} ${isStageRevealed ? "answerPlaceholderSlot" : ""}`}
+                        key={`${segment.text}-${segment.inputIndex}`}
+                        onClick={() => setActiveInputIndex(segment.inputIndex)}
+                      >
+                        <span className={`practiceWordValue ${isStageRevealed ? "revealedWordValue" : ""}`}>
+                          {isStageRevealed ? (
+                            <>
+                              {wordCharacters.map((answerChar, charIndex) => {
+                                const typedChar = inputCharacters[charIndex];
+                                const hasTypedChar = typedChar !== undefined;
+                                const isMatchingChar = hasTypedChar && typedChar.toLowerCase() === answerChar.toLowerCase();
+                                return (
+                                  <span
+                                    className={`practiceAnswerChar ${isMatchingChar ? "typedMatchChar" : ""} ${hasTypedChar && !isMatchingChar ? "typedMismatchChar" : ""}`}
+                                    key={`${answerChar}-${charIndex}`}
+                                  >
+                                    {hasTypedChar && !isMatchingChar ? typedChar : answerChar}
+                                  </span>
+                                );
+                              })}
+                              {overflowCharacters ? (
+                                <span className="typedOverflowChars">{overflowCharacters}</span>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="practiceTypedValue">
+                              {inputValue}
+                            </span>
+                          )}
+                        </span>
+                        <i aria-hidden="true" />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
