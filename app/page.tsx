@@ -725,10 +725,10 @@ function isMobileUserAgent(userAgent: string) {
 }
 
 function resultLabel(result: ReadResult | null) {
-  if (result === "recognized") return "✅ 识别成功";
-  if (result === "try-again") return "⚠️ 继续读剩余单词";
-  if (result === "not-matched") return "❌ 未匹配";
-  return "点击跟读";
+  if (result === "recognized") return "✅ Recognized";
+  if (result === "try-again") return "⚠️ Keep reading";
+  if (result === "not-matched") return "❌ Not matched";
+  return "Tap to read";
 }
 
 function transcriptWordsOf(value: string) {
@@ -865,7 +865,7 @@ function TokenBuilder({
 }: {
   className?: string;
   selectedTokens: Token[];
-  translation: string;
+  translation?: string;
   enableWordSpeech?: boolean;
   promptText?: string;
   speechMode?: "word" | "full";
@@ -900,9 +900,11 @@ function TokenBuilder({
           </div>
         ))}
       </div>
-      <p className="sentenceTranslation homeSentenceTranslation">
-        {translation}
-      </p>
+      {translation ? (
+        <p className="sentenceTranslation homeSentenceTranslation">
+          {translation}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -923,6 +925,7 @@ export default function Home() {
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("dictation");
   const autoStartModeRef = useRef<PracticeMode | null>(null);
   const [stageIndex, setStageIndex] = useState(0);
+  const [maxReadStageIndex, setMaxReadStageIndex] = useState(0);
   const [wordInputs, setWordInputs] = useState<string[]>([]);
   const [activeInputIndex, setActiveInputIndex] = useState(0);
   const [status, setStatus] = useState<"typing" | "success" | "error">("typing");
@@ -951,9 +954,8 @@ export default function Home() {
   const isRecordingRef = useRef(false);
   const paragraphScrollRef = useRef<HTMLDivElement | null>(null);
   const activeParagraphRef = useRef<HTMLElement | null>(null);
-  const skipNextAutoScrollRef = useRef(false);
-  const autoScrollLockUntilRef = useRef(0);
-  const scrollSettleTimerRef = useRef<number | null>(null);
+  const readScrollSettleTimerRef = useRef<number | null>(null);
+  const readAutoScrollLockUntilRef = useRef(0);
   const recordingSessionIdRef = useRef(0);
   const shouldEvaluateRecordingRef = useRef(false);
   const readButtonPointerToggleAtRef = useRef(0);
@@ -1027,6 +1029,7 @@ export default function Home() {
     setIsPractice(false);
     setPracticeMode("dictation");
     setStageIndex(0);
+    setMaxReadStageIndex(0);
     setWordInputs([]);
     setActiveInputIndex(0);
     setStatus("typing");
@@ -1079,19 +1082,13 @@ export default function Home() {
     recognizedReadIndexesRef.current = recognizedReadIndexes;
   }, [recognizedReadIndexes]);
 
-  // Keep the right-hand paragraph scrolled to the sentence currently being read,
-  // so the left panel always lines up with what's centered on the right. Skipped
-  // when the change originated from the user scrolling the right column manually.
+  // Keep the right-hand paragraph aligned with the sentence being read. The list
+  // is only a progress view: scrolling it must not change the active left panel.
   useEffect(() => {
     if (!isPractice || !isReadMode) return;
     const container = paragraphScrollRef.current;
     if (!container) return;
-    if (skipNextAutoScrollRef.current) {
-      skipNextAutoScrollRef.current = false;
-      return;
-    }
-    // Lock out scroll-driven updates while this programmatic scroll animates.
-    autoScrollLockUntilRef.current = Date.now() + 700;
+    readAutoScrollLockUntilRef.current = Date.now() + 520;
     if (showResultModal) {
       container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       return;
@@ -1100,14 +1097,14 @@ export default function Home() {
     if (!item) return;
     const top = item.offsetTop - container.clientHeight / 2 + item.clientHeight / 2;
     container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-  }, [isPractice, isReadMode, stageIndex, status, showResultModal]);
+  }, [isPractice, isReadMode, stageIndex, showResultModal]);
 
   useEffect(() => {
     return () => {
       speechRecognitionRef.current?.abort();
       mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
       if (voiceAnimationRef.current !== null) cancelAnimationFrame(voiceAnimationRef.current);
-      if (scrollSettleTimerRef.current) window.clearTimeout(scrollSettleTimerRef.current);
+      if (readScrollSettleTimerRef.current) window.clearTimeout(readScrollSettleTimerRef.current);
       voiceAudioCtxRef.current?.close();
       recordingUrlsRef.current.forEach((url) => {
         if (url) URL.revokeObjectURL(url);
@@ -1124,6 +1121,7 @@ export default function Home() {
     setShowResultModal(false);
     setIsPractice(true);
     setStageIndex(0);
+    setMaxReadStageIndex(0);
     setWordInputs(Array.from({ length: countDictationInputs(runStages[0].answer) }, () => ""));
     setActiveInputIndex(0);
     setStatus("typing");
@@ -1258,47 +1256,42 @@ export default function Home() {
     window.setTimeout(() => setShowResultModal(true), 650);
   }
 
-  // Jump the active sentence to an arbitrary stage (used when the user scrolls
-  // the right column to a different sentence). Does not touch stats.
-  function goToStage(nextStageIndex: number) {
-    if (nextStageIndex === stageIndex || nextStageIndex < 0 || nextStageIndex >= stages.length) return;
+  function goToReadStage(nextStageIndex: number) {
+    if (!isReadMode || nextStageIndex === stageIndex || nextStageIndex < 0 || nextStageIndex > maxReadStageIndex) return;
     finishReadRecording({ abortRecognition: true, evaluate: false });
-    const targetStage = stages[nextStageIndex];
-    const targetReadIndexes = targetStage.readTokenIndexes ?? targetStage.tokenIndexes;
-    const recognized = recognizedReadIndexesRef.current[nextStageIndex] ?? [];
-    const isDone = targetReadIndexes.every((tokenIndex) => recognized.includes(tokenIndex));
+    readAutoScrollLockUntilRef.current = Date.now() + 420;
     setStageIndex(nextStageIndex);
-    setStatus(isDone ? "success" : "typing");
+    setWordInputs(Array.from({ length: countDictationInputs(stages[nextStageIndex].answer) }, () => ""));
+    setActiveInputIndex(0);
+    setStatus("typing");
     setReadResult(null);
     setRecognizedText("");
+    setRecordingError("");
+    setRecognizedReadIndexes((current) => current.map((indexes, index) => index === nextStageIndex ? [] : indexes));
   }
 
   function handleParagraphScroll() {
-    if (showResultModal) return;
-    // Ignore scroll events produced by our own programmatic auto-scroll.
-    if (Date.now() < autoScrollLockUntilRef.current) return;
+    if (!isPractice || !isReadMode || showResultModal) return;
+    if (Date.now() < readAutoScrollLockUntilRef.current) return;
     const container = paragraphScrollRef.current;
     if (!container) return;
-    if (scrollSettleTimerRef.current) window.clearTimeout(scrollSettleTimerRef.current);
-    scrollSettleTimerRef.current = window.setTimeout(() => {
-      const items = Array.from(container.querySelectorAll<HTMLElement>(".readParagraphItem"));
+    if (readScrollSettleTimerRef.current) window.clearTimeout(readScrollSettleTimerRef.current);
+    readScrollSettleTimerRef.current = window.setTimeout(() => {
+      const items = Array.from(container.querySelectorAll<HTMLElement>(".readParagraphItem[data-stage-index]"));
       if (!items.length) return;
       const centerY = container.scrollTop + container.clientHeight / 2;
-      let nearest = 0;
+      let nearestStageIndex = stageIndex;
       let nearestDistance = Infinity;
-      items.forEach((item, index) => {
+      items.forEach((item) => {
         const itemCenter = item.offsetTop + item.clientHeight / 2;
         const distance = Math.abs(itemCenter - centerY);
         if (distance < nearestDistance) {
           nearestDistance = distance;
-          nearest = index;
+          nearestStageIndex = Number(item.dataset.stageIndex);
         }
       });
-      if (nearest !== stageIndex) {
-        skipNextAutoScrollRef.current = true;
-        goToStage(nearest);
-      }
-    }, 90);
+      goToReadStage(nearestStageIndex);
+    }, 130);
   }
 
   function advanceStage() {
@@ -1306,6 +1299,9 @@ export default function Home() {
     if (stageIndex < stages.length - 1) {
       const nextStageIndex = stageIndex + 1;
       setStageIndex(nextStageIndex);
+      if (isReadMode) {
+        setMaxReadStageIndex((current) => Math.max(current, nextStageIndex));
+      }
       setWordInputs(Array.from({ length: countDictationInputs(stages[nextStageIndex].answer) }, () => ""));
       setActiveInputIndex(0);
       setStatus("typing");
@@ -1550,12 +1546,12 @@ export default function Home() {
   async function startReadRecording() {
     if (isRecordingRef.current || status === "success") return;
     if (!navigator.mediaDevices?.getUserMedia) {
-      setRecordingError("当前浏览器不支持录音。");
+      setRecordingError("Recording is not supported in this browser.");
       setReadResult("not-matched");
       return;
     }
     if (typeof MediaRecorder === "undefined") {
-      setRecordingError("当前浏览器不支持 MediaRecorder 录音。");
+      setRecordingError("MediaRecorder is not supported in this browser.");
       setReadResult("not-matched");
       return;
     }
@@ -1582,7 +1578,7 @@ export default function Home() {
         recorder = new MediaRecorder(stream);
       } catch {
         stream.getTracks().forEach((track) => track.stop());
-        setRecordingError("当前浏览器无法创建录音器。");
+        setRecordingError("This browser could not create a recorder.");
         setReadResult("not-matched");
         return;
       }
@@ -1635,7 +1631,7 @@ export default function Home() {
             if (recordingSessionIdRef.current !== sessionId) return;
             // Silence/abort between re-reads is expected while we keep the mic open.
             if (error === "no-speech" || error === "aborted") return;
-            setRecordingError(message);
+            setRecordingError(error ? `Speech recognition failed: ${error}.` : "Speech recognition failed. Please try again.");
           },
           onEnd: (transcript) => {
             if (recordingSessionIdRef.current !== sessionId) return;
@@ -1662,7 +1658,7 @@ export default function Home() {
         });
 
         if (!recognition) {
-          setRecordingError("录音已开始，但当前浏览器不支持语音识别。");
+          setRecordingError("Recording started, but speech recognition is not supported.");
           return;
         }
 
@@ -1671,7 +1667,7 @@ export default function Home() {
           recognition.start();
         } catch {
           speechRecognitionRef.current = null;
-          setRecordingError("录音已开始，但当前浏览器无法启动语音识别。");
+          setRecordingError("Recording started, but speech recognition could not start.");
         }
       };
 
@@ -1681,7 +1677,7 @@ export default function Home() {
       setIsRecording(false);
       stopVoiceLevelMeter();
       const errorName = error instanceof DOMException ? error.name : "";
-      setRecordingError(errorName ? `跟读练习需要麦克风权限：${errorName}。` : "跟读练习需要麦克风权限。");
+      setRecordingError(errorName ? `Microphone permission is required: ${errorName}.` : "Microphone permission is required.");
       setReadResult("not-matched");
     }
   }
@@ -1705,6 +1701,7 @@ export default function Home() {
     setIsPractice(false);
     setPracticeMode("dictation");
     setStageIndex(0);
+    setMaxReadStageIndex(0);
     setWordInputs([]);
     setActiveInputIndex(0);
     setStatus("typing");
@@ -1881,6 +1878,15 @@ export default function Home() {
     </section>
   );
 
+  const visibleReadStageCount = isReadMode
+    ? showResultModal
+      ? stages.length
+      : Math.min(maxReadStageIndex + 1, stages.length)
+    : 0;
+  const visibleReadStages = isReadMode ? stages.slice(0, visibleReadStageCount) : [];
+  const nextReadStageIndex = showResultModal ? -1 : visibleReadStageCount;
+  const nextReadStage = isReadMode && nextReadStageIndex < stages.length ? stages[nextReadStageIndex] : null;
+
   return (
     <main className={`gramtreeHome ${isPractice ? "practiceHome" : ""}`}>
       {!isPractice && (<>
@@ -2022,7 +2028,9 @@ export default function Home() {
         <section className={`practiceShell ${isReadMode ? "readPracticeShell" : ""}`} aria-label={isReadMode ? "Read-aloud practice" : "Keyboard sentence practice"}>
           <div className="practiceTopBar">
             <strong>
-              {isReadMode ? "点击单词听发音，按下按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
+              {isReadMode
+                ? `Tap words, then read aloud (${stageIndex + 1}/${stages.length})`
+                : `用键盘输入英文，按 Tab 切换单词（${stageIndex + 1}/${stages.length}）`}
             </strong>
             <span>{score}</span>
           </div>
@@ -2048,15 +2056,14 @@ export default function Home() {
                 </span>
                 <p className="practiceTypingHint">
                   {isSentenceReadStage
-                    ? "先点完整句子听标准发音"
+                    ? "Tap the sentence to hear it first"
                     : isPhraseReadStage
-                      ? "先点单词卡片，跟读这组词"
-                      : "先点单词卡片听标准发音"}
+                      ? "Tap the word card, then read this phrase"
+                      : "Tap the word card to hear it first"}
                 </p>
                 <TokenBuilder
                   className={`readPracticeToken ${isSentenceReadStage ? "sentenceReadToken" : ""} ${isPhraseReadStage ? "phraseReadToken" : ""}`}
                   selectedTokens={revealedTokens}
-                  translation={stage.chinese}
                   speechMode="full"
                   speechText={readAnswer}
                   focusIndex={readFocusIndex}
@@ -2066,7 +2073,7 @@ export default function Home() {
                 <button
                   type="button"
                   className={`holdToReadButton ${isRecording ? "recording" : ""}`}
-                  aria-label={isRecording ? "结束录音" : "开始录音"}
+                  aria-label={isRecording ? "Stop recording" : "Start recording"}
                   aria-pressed={isRecording}
                   onPointerDown={(event) => {
                     event.preventDefault();
@@ -2098,56 +2105,87 @@ export default function Home() {
                   {resultLabel(readResult)}
                 </div>
                 <p className="readProgressText">
-                  已识别 {recognizedReadCount}/{readTokenIndexes.length}
+                  Recognized {recognizedReadCount}/{readTokenIndexes.length}
                 </p>
                 {recognizedText ? (
-                  <p className="recognizedText">听到：<strong>{recognizedText}</strong></p>
+                  <p className="recognizedText">Heard: <strong>{recognizedText}</strong></p>
                 ) : null}
                 {recordingError ? <p className="recordingError">{recordingError}</p> : null}
                 {recordingUrls[stageIndex] ? (
                   <div className="recordingPlayback">
-                    <span>你的录音</span>
+                    <span>Your recording</span>
                     <audio controls src={recordingUrls[stageIndex] ?? undefined} />
                   </div>
                 ) : null}
                     </div>
                     <div className="practiceShortcuts readPracticeShortcuts" aria-label="Read-aloud controls">
                       <button type="button" onClick={exitReadPractice}>
-                        返回
+                        Back
                       </button>
                       <button type="button" onClick={playPronunciation}>
-                        播放标准发音
+                        Play audio
                       </button>
                       <button type="button" onClick={advanceStage} disabled={status !== "success"}>
-                        继续
+                        Continue
                       </button>
                       <button type="button" onClick={skipReadStage}>
-                        跳过
+                        Skip
                       </button>
                     </div>
                   </>
                 )}
               </div>
-              <div className="readSplitRight" ref={paragraphScrollRef} onScroll={handleParagraphScroll} aria-label="段落进度">
-                {stages.map((paragraphStage, paragraphIndex) => {
+              <div className="readSplitRightPane" aria-label="段落进度">
+                <div className="readSplitRight" ref={paragraphScrollRef} onScroll={handleParagraphScroll}>
+                {visibleReadStages.map((paragraphStage, paragraphIndex) => {
                   const isActiveParagraph = paragraphIndex === stageIndex && !showResultModal;
                   const isDoneParagraph =
                     showResultModal ||
-                    paragraphIndex < stageIndex ||
+                    paragraphIndex < maxReadStageIndex ||
                     (paragraphIndex === stageIndex && status === "success");
                   const paragraphState = isActiveParagraph ? "active" : isDoneParagraph ? "done" : "upcoming";
                   return (
                     <article
                       key={`${paragraphStage.answer}-${paragraphIndex}`}
                       ref={isActiveParagraph ? activeParagraphRef : null}
+                      data-stage-index={paragraphIndex}
                       className={`readParagraphItem ${paragraphState}`}
                     >
                       <span className="readParagraphIndex">{paragraphIndex + 1}</span>
-                      <p className="readParagraphEnglish">{paragraphStage.answer}</p>
                       <p className="readParagraphChinese">{paragraphStage.chinese}</p>
                     </article>
                   );
                 })}
+                </div>
+                <aside
+                  className="readParagraphMinimap"
+                  aria-label="段落总览"
+                >
+                  <div className="readParagraphMinimapContent">
+                    {stages.map((paragraphStage, paragraphIndex) => {
+                      const isActiveParagraph = paragraphIndex === stageIndex && !showResultModal;
+                      const isDoneParagraph = showResultModal || paragraphIndex < maxReadStageIndex;
+                      const minimapState = isActiveParagraph ? "active" : isDoneParagraph ? "done" : "upcoming";
+                      return (
+                        <span
+                          className={`readParagraphMinimapLine ${minimapState}`}
+                          key={`minimap-${paragraphStage.answer}-${paragraphIndex}`}
+                          title={paragraphStage.chinese}
+                        >
+                          {paragraphStage.chinese}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </aside>
+                {nextReadStage ? (
+                  <div className="readUpcomingPreview" aria-label="下一句预览">
+                    <article className="readParagraphItem upcoming">
+                      <span className="readParagraphIndex">{nextReadStageIndex + 1}</span>
+                      <p className="readParagraphChinese">{nextReadStage.chinese}</p>
+                    </article>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (

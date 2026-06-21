@@ -708,7 +708,7 @@ select {
   grid-template-rows: 88px minmax(0, 1fr) 86px;
   position: relative;
   border: 1px solid #e5e7eb;
-  border-radius: 24px;
+  border-radius: 0;
   background: #ffffff;
   overflow: hidden;
 }
@@ -767,7 +767,19 @@ select {
 
 /* Read-aloud split view: current sentence on the left, scrollable paragraph on the right. */
 .readPracticeShell {
-  grid-template-rows: 88px minmax(0, 1fr);
+  grid-template-rows: clamp(64px, 9dvh, 88px) minmax(0, 1fr);
+}
+
+.readPracticeShell .practiceTopBar {
+  height: clamp(64px, 9dvh, 88px);
+}
+
+.readPracticeShell .practiceTopBar strong {
+  font-size: clamp(0.98rem, 1.2vw, 1.35rem);
+}
+
+.readPracticeShell .practiceProgress {
+  top: clamp(78px, calc(9dvh + 14px), 109px);
 }
 
 .readSplit {
@@ -777,7 +789,7 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
   gap: clamp(12px, 2vw, 30px);
-  padding: 60px clamp(16px, 2.6vw, 44px) 24px;
+  padding: clamp(28px, 5dvh, 48px) clamp(14px, 2.4vw, 40px) clamp(12px, 2dvh, 22px);
 }
 
 .readSplitLeft {
@@ -787,53 +799,131 @@ select {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(10px, 2vh, 20px);
+  gap: clamp(6px, 1.3dvh, 14px);
   overflow: hidden;
 }
 
 .readSplitLeft .readPracticeShortcuts {
   position: static;
-  margin-top: clamp(6px, 1.4vh, 16px);
+  height: auto;
+  margin-top: clamp(2px, 1dvh, 10px);
+  padding: 4px 10px 8px;
 }
 
 .readSplitLeft .readPracticeToken .homeBuilderToken {
-  max-width: min(100%, 30rem);
+  max-width: min(100%, 24rem);
 }
 
 .readSplitLeft .readPracticeToken .homeWordBlock {
-  inline-size: min(100%, 30rem);
+  inline-size: min(100%, 24rem);
+}
+
+.readSplitRightPane {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: clamp(8px, 1.4vh, 16px);
+  border-left: 1px solid #eef2f7;
+  padding-right: clamp(76px, 9vw, 112px);
+}
+
+.readSplitRightPane::before {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 0;
+  right: clamp(76px, 9vw, 112px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(100, 116, 139, 0.34), transparent);
+  pointer-events: none;
 }
 
 .readSplitRight {
-  position: relative;
   min-height: 0;
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+  scroll-snap-type: y proximity;
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 1.4vh, 16px);
   padding: 40vh 6px 40vh 0;
-  border-left: 1px solid #eef2f7;
   scroll-behavior: smooth;
+}
+
+.readSplitRight::-webkit-scrollbar {
+  display: none;
+}
+
+.readUpcomingPreview {
+  padding: 0 6px 0 0;
+  pointer-events: none;
+}
+
+.readParagraphMinimap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(64px, 8vw, 96px);
+  overflow: hidden;
+  border-left: 1px solid #e5e7eb;
+  background: linear-gradient(90deg, rgba(248, 250, 252, 0.48), rgba(255, 255, 255, 0.86) 28%);
+}
+
+.readParagraphMinimapContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 2px 3px 5px;
+}
+
+.readParagraphMinimapLine {
+  min-height: 5px;
+  overflow: hidden;
+  border-radius: 2px;
+  color: #aeb6c2;
+  font-size: 4px;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.readParagraphMinimapLine.done {
+  color: #94a3b8;
+}
+
+.readParagraphMinimapLine.active {
+  border: 1px solid rgba(99, 102, 241, 0.26);
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.readUpcomingPreview .readParagraphItem {
+  background: #ffffff;
 }
 
 .readParagraphItem {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
+  align-items: center;
   column-gap: 12px;
-  padding: 12px clamp(12px, 1.6vw, 22px);
+  padding: 14px clamp(12px, 1.6vw, 22px);
   border-left: 3px solid transparent;
   border-radius: 0 12px 12px 0;
+  scroll-snap-align: center;
   transition:
     opacity 0.25s ease,
     background 0.25s ease,
-    border-color 0.25s ease;
+    border-color 0.25s ease,
+    transform 0.25s ease;
 }
 
 .readParagraphIndex {
-  grid-row: span 2;
   min-width: 20px;
   color: #cbd5e1;
   font-size: 0.82rem;
@@ -841,19 +931,12 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-.readParagraphEnglish {
-  margin: 0;
-  color: #0f172a;
-  font-size: clamp(1.05rem, 1.6vw, 1.6rem);
-  font-weight: 800;
-  line-height: 1.35;
-}
-
 .readParagraphChinese {
-  margin: 4px 0 0;
-  color: #94a3b8;
-  font-size: clamp(0.76rem, 1.05vw, 0.96rem);
-  font-weight: 700;
+  margin: 0;
+  color: #475569;
+  font-size: clamp(0.95rem, 1.35vw, 1.22rem);
+  font-weight: 850;
+  line-height: 1.45;
 }
 
 .readParagraphItem.upcoming {
@@ -861,20 +944,25 @@ select {
 }
 
 .readParagraphItem.active {
-  background: #f5f3ff;
-  border-left-color: #a855f7;
+  background: #f8fafc;
+  border-left-color: #818cf8;
+  transform: translateX(2px);
 }
 
 .readParagraphItem.active .readParagraphIndex {
-  color: #a855f7;
+  color: #6366f1;
 }
 
-.readParagraphItem.done .readParagraphEnglish {
-  color: #15803d;
+.readParagraphItem.active .readParagraphChinese {
+  color: #334155;
+}
+
+.readParagraphItem.done .readParagraphChinese {
+  color: #64748b;
 }
 
 .readParagraphItem.done .readParagraphIndex {
-  color: #22c55e;
+  color: #94a3b8;
 }
 
 .readResultInline {
@@ -892,18 +980,31 @@ select {
   .readSplit {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 12px;
-    padding: 56px 14px 16px;
+    gap: clamp(8px, 1.5dvh, 12px);
+    padding: clamp(24px, 4dvh, 36px) 14px 12px;
   }
 
   .readSplitLeft {
     justify-content: flex-start;
+    gap: clamp(5px, 1dvh, 10px);
+  }
+
+  .readSplitRightPane {
+    border-left: none;
+    border-top: 1px solid #eef2f7;
+    padding-right: 72px;
+  }
+
+  .readSplitRightPane::before {
+    right: 72px;
   }
 
   .readSplitRight {
-    border-left: none;
-    border-top: 1px solid #eef2f7;
     padding: 26vh 0;
+  }
+
+  .readUpcomingPreview {
+    padding: 0;
   }
 }
 
@@ -1080,12 +1181,13 @@ select {
 }
 
 .readPracticeStage {
-  width: min(92vw, 720px);
+  width: min(100%, 620px);
+  max-height: 100%;
   display: flex;
   align-items: center;
   flex-direction: column;
   justify-content: center;
-  gap: clamp(8px, 1.4vh, 14px);
+  gap: clamp(6px, 1.1dvh, 11px);
   color: #111827;
   text-align: center;
 }
@@ -1094,7 +1196,7 @@ select {
   width: auto;
   min-height: 0;
   border: 0;
-  gap: 14px;
+  gap: clamp(7px, 1.1dvh, 10px);
   padding: 0;
 }
 
@@ -1103,11 +1205,11 @@ select {
 }
 
 .readPracticeToken .homeWordStrip {
-  row-gap: 12px;
+  row-gap: clamp(6px, 1dvh, 10px);
 }
 
 .readPracticeToken .homeBuilderToken {
-  max-width: min(82vw, 30rem);
+  max-width: min(82vw, 24rem);
 }
 
 .readPracticeToken .contextToken {
@@ -1141,14 +1243,14 @@ select {
 }
 
 .readPracticeToken .homeWordBlock {
-  inline-size: min(82vw, 30rem);
+  inline-size: min(82vw, 24rem);
   max-inline-size: 100%;
   container-type: inline-size;
 }
 
 .readPracticeToken .homeWordText {
   max-inline-size: 100%;
-  font-size: clamp(2.25rem, calc(80cqi / max(var(--word-length, 6), 6)), 5.25rem);
+  font-size: clamp(1.95rem, calc(72cqi / max(var(--word-length, 6), 6)), 4.35rem);
   line-height: 0.95;
   overflow-wrap: normal;
   white-space: nowrap;
@@ -1157,7 +1259,7 @@ select {
 .readPracticeToken .homeSentenceTranslation {
   margin-top: 0;
   color: #64748b;
-  font-size: clamp(1.1rem, 4.8vw, 1.7rem);
+  font-size: clamp(0.98rem, 2.4vw, 1.35rem);
   font-weight: 900;
 }
 
@@ -1167,8 +1269,8 @@ select {
 
 .holdToReadButton {
   position: relative;
-  width: clamp(4.6rem, 18vw, 6.25rem);
-  height: clamp(4.6rem, 18vw, 6.25rem);
+  width: clamp(4.15rem, 11vmin, 5.35rem);
+  height: clamp(4.15rem, 11vmin, 5.35rem);
   display: inline-grid;
   place-items: center;
   border: 0;
@@ -1200,8 +1302,8 @@ select {
 
 .micIcon {
   z-index: 1;
-  width: 2.65rem;
-  height: 3.15rem;
+  width: clamp(2rem, 5.2vmin, 2.4rem);
+  height: clamp(2.35rem, 6.1vmin, 2.85rem);
   fill: none;
   stroke: rgba(255, 255, 255, 0.86);
   stroke-width: 1.2;
@@ -1241,10 +1343,10 @@ select {
 
 .readResultBadge {
   border-radius: 999px;
-  padding: 8px 16px;
+  padding: 6px 14px;
   background: #f1f5f9;
   color: #475569;
-  font-size: clamp(1rem, 4vw, 1.35rem);
+  font-size: clamp(0.9rem, 2vw, 1.12rem);
   font-weight: 1000;
   -webkit-user-select: none;
   user-select: none;
@@ -1309,8 +1411,8 @@ select {
 }
 
 .sentenceReadToken {
-  width: min(92vw, 34rem);
-  gap: 8px;
+  width: min(100%, 30rem);
+  gap: clamp(5px, 0.9dvh, 8px);
 }
 
 .sentenceReadToken .homeWordStrip {
@@ -1318,7 +1420,7 @@ select {
   align-items: flex-start;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: clamp(5px, 0.85dvh, 7px);
 }
 
 .sentenceReadToken .homeBuilderToken {
@@ -1338,26 +1440,68 @@ select {
 
 .sentenceReadToken .homeWordBlock {
   width: max-content;
-  max-width: 84vw;
+  max-width: 100%;
   min-width: 0;
-  min-height: clamp(3rem, 8vh, 4.4rem);
+  min-height: clamp(2.6rem, 6.2dvh, 3.6rem);
   inline-size: auto;
   container-type: normal;
-  padding: 0.45rem 0.55rem;
-  border-radius: 0.85rem;
+  padding: 0.36rem 0.5rem;
+  border-radius: 0.72rem;
 }
 
 .sentenceReadToken .homeWordText {
-  font-size: clamp(1.65rem, 4vw, 2.45rem);
+  font-size: clamp(1.35rem, 3.2vw, 1.95rem);
 }
 
 .sentenceReadToken .grammarUnderline {
-  height: 0.25rem;
+  height: 0.2rem;
 }
 
 .sentenceReadToken .homeSentenceTranslation {
-  margin-top: 0.15rem;
-  font-size: clamp(1rem, 3.8vw, 1.35rem);
+  margin-top: 0.05rem;
+  font-size: clamp(0.9rem, 2.4vw, 1.15rem);
+}
+
+@media (max-width: 860px) {
+  .readPracticeStage {
+    width: min(100%, 560px);
+    gap: 6px;
+  }
+
+  .readPracticeStage .practiceTypingHint {
+    font-size: clamp(0.95rem, 3.2vw, 1.12rem);
+  }
+
+  .readPracticeToken .homeWordText {
+    font-size: clamp(1.75rem, calc(66cqi / max(var(--word-length, 6), 6)), 3.4rem);
+  }
+
+  .sentenceReadToken {
+    width: min(100%, 32rem);
+  }
+
+  .sentenceReadToken .homeWordBlock {
+    min-height: clamp(2.35rem, 5.6dvh, 3.25rem);
+    padding: 0.32rem 0.46rem;
+  }
+
+  .sentenceReadToken .homeWordText {
+    font-size: clamp(1.28rem, 3vw, 1.72rem);
+  }
+
+  .sentenceReadToken .homeSentenceTranslation {
+    font-size: clamp(0.86rem, 2.4vw, 1.05rem);
+  }
+
+  .holdToReadButton {
+    width: clamp(3.75rem, 9dvh, 4.6rem);
+    height: clamp(3.75rem, 9dvh, 4.6rem);
+  }
+
+  .readResultBadge {
+    padding: 5px 11px;
+    font-size: clamp(0.86rem, 2.8vw, 1rem);
+  }
 }
 
 @keyframes inputShake {
@@ -2642,7 +2786,7 @@ textarea:focus {
 
   .practiceShell {
     grid-template-rows: 64px minmax(0, 1fr) 82px;
-    border-radius: 18px;
+    border-radius: 0;
   }
 
   .practiceTopBar {
@@ -2666,21 +2810,43 @@ textarea:focus {
   }
 
   .readPracticeStage {
-    gap: 8px;
+    width: min(100%, 560px);
+    gap: 6px;
   }
 
   .readPracticeStage .practiceTypingHint {
-    font-size: clamp(1rem, 4vw, 1.25rem);
+    font-size: clamp(0.95rem, 3.2vw, 1.12rem);
+  }
+
+  .readPracticeToken .homeWordText {
+    font-size: clamp(1.75rem, calc(66cqi / max(var(--word-length, 6), 6)), 3.4rem);
+  }
+
+  .sentenceReadToken {
+    width: min(100%, 32rem);
+  }
+
+  .sentenceReadToken .homeWordBlock {
+    min-height: clamp(2.35rem, 5.6dvh, 3.25rem);
+    padding: 0.32rem 0.46rem;
+  }
+
+  .sentenceReadToken .homeWordText {
+    font-size: clamp(1.28rem, 3vw, 1.72rem);
+  }
+
+  .sentenceReadToken .homeSentenceTranslation {
+    font-size: clamp(0.86rem, 2.4vw, 1.05rem);
   }
 
   .holdToReadButton {
-    width: clamp(4rem, 16vw, 4.75rem);
-    height: clamp(4rem, 16vw, 4.75rem);
+    width: clamp(3.75rem, 9dvh, 4.6rem);
+    height: clamp(3.75rem, 9dvh, 4.6rem);
   }
 
   .readResultBadge {
-    padding: 6px 12px;
-    font-size: clamp(0.92rem, 3.6vw, 1.1rem);
+    padding: 5px 11px;
+    font-size: clamp(0.86rem, 2.8vw, 1rem);
   }
 
   .recognizedText,
