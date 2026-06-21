@@ -943,11 +943,17 @@ export default function Home() {
   const speechRecognitionRef = useRef<SpeechRecognitionSession | null>(null);
   const speechTranscriptRef = useRef("");
   const speechResultAppliedRef = useRef(false);
+  const recognizedReadIndexesRef = useRef<number[][]>([[]]);
   const recordingUrlsRef = useRef<(string | null)[]>([]);
   const voiceAnimationRef = useRef<number | null>(null);
   const voiceAudioCtxRef = useRef<AudioContext | null>(null);
   const smoothedVoiceLevelRef = useRef(0);
   const isRecordingRef = useRef(false);
+  const paragraphScrollRef = useRef<HTMLDivElement | null>(null);
+  const activeParagraphRef = useRef<HTMLElement | null>(null);
+  const skipNextAutoScrollRef = useRef(false);
+  const autoScrollLockUntilRef = useRef(0);
+  const scrollSettleTimerRef = useRef<number | null>(null);
   const recordingSessionIdRef = useRef(0);
   const shouldEvaluateRecordingRef = useRef(false);
   const readButtonPointerToggleAtRef = useRef(0);
@@ -1070,10 +1076,38 @@ export default function Home() {
   }, [recordingUrls]);
 
   useEffect(() => {
+    recognizedReadIndexesRef.current = recognizedReadIndexes;
+  }, [recognizedReadIndexes]);
+
+  // Keep the right-hand paragraph scrolled to the sentence currently being read,
+  // so the left panel always lines up with what's centered on the right. Skipped
+  // when the change originated from the user scrolling the right column manually.
+  useEffect(() => {
+    if (!isPractice || !isReadMode) return;
+    const container = paragraphScrollRef.current;
+    if (!container) return;
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
+    // Lock out scroll-driven updates while this programmatic scroll animates.
+    autoScrollLockUntilRef.current = Date.now() + 700;
+    if (showResultModal) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      return;
+    }
+    const item = activeParagraphRef.current;
+    if (!item) return;
+    const top = item.offsetTop - container.clientHeight / 2 + item.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [isPractice, isReadMode, stageIndex, status, showResultModal]);
+
+  useEffect(() => {
     return () => {
       speechRecognitionRef.current?.abort();
       mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
       if (voiceAnimationRef.current !== null) cancelAnimationFrame(voiceAnimationRef.current);
+      if (scrollSettleTimerRef.current) window.clearTimeout(scrollSettleTimerRef.current);
       voiceAudioCtxRef.current?.close();
       recordingUrlsRef.current.forEach((url) => {
         if (url) URL.revokeObjectURL(url);
@@ -1222,6 +1256,49 @@ export default function Home() {
       finishedAt: current.finishedAt ?? Date.now(),
     }));
     window.setTimeout(() => setShowResultModal(true), 650);
+  }
+
+  // Jump the active sentence to an arbitrary stage (used when the user scrolls
+  // the right column to a different sentence). Does not touch stats.
+  function goToStage(nextStageIndex: number) {
+    if (nextStageIndex === stageIndex || nextStageIndex < 0 || nextStageIndex >= stages.length) return;
+    finishReadRecording({ abortRecognition: true, evaluate: false });
+    const targetStage = stages[nextStageIndex];
+    const targetReadIndexes = targetStage.readTokenIndexes ?? targetStage.tokenIndexes;
+    const recognized = recognizedReadIndexesRef.current[nextStageIndex] ?? [];
+    const isDone = targetReadIndexes.every((tokenIndex) => recognized.includes(tokenIndex));
+    setStageIndex(nextStageIndex);
+    setStatus(isDone ? "success" : "typing");
+    setReadResult(null);
+    setRecognizedText("");
+  }
+
+  function handleParagraphScroll() {
+    if (showResultModal) return;
+    // Ignore scroll events produced by our own programmatic auto-scroll.
+    if (Date.now() < autoScrollLockUntilRef.current) return;
+    const container = paragraphScrollRef.current;
+    if (!container) return;
+    if (scrollSettleTimerRef.current) window.clearTimeout(scrollSettleTimerRef.current);
+    scrollSettleTimerRef.current = window.setTimeout(() => {
+      const items = Array.from(container.querySelectorAll<HTMLElement>(".readParagraphItem"));
+      if (!items.length) return;
+      const centerY = container.scrollTop + container.clientHeight / 2;
+      let nearest = 0;
+      let nearestDistance = Infinity;
+      items.forEach((item, index) => {
+        const itemCenter = item.offsetTop + item.clientHeight / 2;
+        const distance = Math.abs(itemCenter - centerY);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = index;
+        }
+      });
+      if (nearest !== stageIndex) {
+        skipNextAutoScrollRef.current = true;
+        goToStage(nearest);
+      }
+    }, 90);
   }
 
   function advanceStage() {
@@ -1398,7 +1475,10 @@ export default function Home() {
   function applyReadResult(transcript: string): ReadResult {
     setRecognizedText(transcript);
 
-    const currentRecognizedIndexes = recognizedReadIndexes[stageIndex] ?? [];
+    // Read the already-matched tokens from a ref so accumulation survives the
+    // continuous-listen restarts (the onEnd closure would otherwise keep a
+    // stale snapshot and drop previously recognized words on the next utterance).
+    const currentRecognizedIndexes = recognizedReadIndexesRef.current[stageIndex] ?? [];
     const newMatches = findNewReadMatches({
       transcript,
       tokens,
@@ -1414,11 +1494,10 @@ export default function Home() {
           : "not-matched";
 
     if (newMatches.length > 0) {
-      setRecognizedReadIndexes((current) => {
-        const next = [...current];
-        next[stageIndex] = nextRecognizedIndexes;
-        return next;
-      });
+      const nextState = [...recognizedReadIndexesRef.current];
+      nextState[stageIndex] = nextRecognizedIndexes;
+      recognizedReadIndexesRef.current = nextState;
+      setRecognizedReadIndexes(nextState);
     }
 
     setReadResult(result);
@@ -1747,6 +1826,61 @@ export default function Home() {
     }));
   }, [showResultModal]);
 
+  const resultSummary = (
+    <section className="resultModal">
+      <header className="resultHeader">
+        <span>🎉</span>
+        <strong>太强了！</strong>
+      </header>
+      <div className="resultScoreRow">
+        <div>
+          <strong className="resultGrade">{grade}</strong>
+          <span className="resultScore">/{score.toLocaleString()}</span>
+        </div>
+        <dl>
+          <div>
+            <dt>{stats.perfect}</dt>
+            <dd>完美</dd>
+          </div>
+          <div>
+            <dt>{stats.good}</dt>
+            <dd>很好</dd>
+          </div>
+          <div>
+            <dt>{stats.skipped}</dt>
+            <dd>跳过</dd>
+          </div>
+        </dl>
+      </div>
+      <div className="resultStatsGrid">
+        <div>
+          <span>练习时长</span>
+          <strong>{duration}</strong>
+        </div>
+        <div>
+          <span>答题数</span>
+          <strong>{stats.answered}</strong>
+        </div>
+        <div>
+          <span>最大连击 🔥</span>
+          <strong>{stats.maxStreak}</strong>
+        </div>
+      </div>
+      <div className="resultMessage">
+        <strong>刷着刷着就记住了，这就是 gramtree 的学习方式</strong>
+        <span>每次进入测试都会重新统计本轮数据</span>
+      </div>
+      <footer className="resultActions">
+        <button type="button" className="secondaryResultButton" onClick={() => startPractice()}>
+          再来一次
+        </button>
+        <button type="button" className="primaryResultButton" onClick={() => startPractice()}>
+          免费体验
+        </button>
+      </footer>
+    </section>
+  );
+
   return (
     <main className={`gramtreeHome ${isPractice ? "practiceHome" : ""}`}>
       {!isPractice && (<>
@@ -1885,7 +2019,7 @@ export default function Home() {
         </div>
         </>
       ) : (
-        <section className="practiceShell" aria-label={isReadMode ? "Read-aloud practice" : "Keyboard sentence practice"}>
+        <section className={`practiceShell ${isReadMode ? "readPracticeShell" : ""}`} aria-label={isReadMode ? "Read-aloud practice" : "Keyboard sentence practice"}>
           <div className="practiceTopBar">
             <strong>
               {isReadMode ? "点击单词听发音，按下按钮朗读" : "用键盘输入英文，按 Tab 切换单词"}（{stageIndex + 1}/{stages.length}）
@@ -1896,14 +2030,19 @@ export default function Home() {
             <span style={{ width: `${((stageIndex + (status === "success" ? 1 : 0)) / stages.length) * 100}%` }} />
           </div>
 
-          <div className="practiceCenter">
-            {perfectStreak !== null && (
-              <div className="perfectStreak" key={perfectStreak}>
-                perfect ✕ {perfectStreak}
-              </div>
-            )}
-            {isReadMode ? (
-              <div className={`readPracticeStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
+          {isReadMode ? (
+            <div className="readSplit">
+              <div className="readSplitLeft">
+                {showResultModal ? (
+                  <div className="readResultInline">{resultSummary}</div>
+                ) : (
+                  <>
+                    {perfectStreak !== null && (
+                      <div className="perfectStreak" key={perfectStreak}>
+                        perfect ✕ {perfectStreak}
+                      </div>
+                    )}
+                    <div className={`readPracticeStage ${status === "error" ? "readError" : ""} ${status === "success" ? "readSuccess" : ""}`}>
                 <span className={`providerBadge ${readProvider.badge.toLowerCase()}`} title={readProvider.label}>
                   {readProvider.badge}
                 </span>
@@ -1971,8 +2110,55 @@ export default function Home() {
                     <audio controls src={recordingUrls[stageIndex] ?? undefined} />
                   </div>
                 ) : null}
+                    </div>
+                    <div className="practiceShortcuts readPracticeShortcuts" aria-label="Read-aloud controls">
+                      <button type="button" onClick={exitReadPractice}>
+                        返回
+                      </button>
+                      <button type="button" onClick={playPronunciation}>
+                        播放标准发音
+                      </button>
+                      <button type="button" onClick={advanceStage} disabled={status !== "success"}>
+                        继续
+                      </button>
+                      <button type="button" onClick={skipReadStage}>
+                        跳过
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-            ) : status === "success" ? (
+              <div className="readSplitRight" ref={paragraphScrollRef} onScroll={handleParagraphScroll} aria-label="段落进度">
+                {stages.map((paragraphStage, paragraphIndex) => {
+                  const isActiveParagraph = paragraphIndex === stageIndex && !showResultModal;
+                  const isDoneParagraph =
+                    showResultModal ||
+                    paragraphIndex < stageIndex ||
+                    (paragraphIndex === stageIndex && status === "success");
+                  const paragraphState = isActiveParagraph ? "active" : isDoneParagraph ? "done" : "upcoming";
+                  return (
+                    <article
+                      key={`${paragraphStage.answer}-${paragraphIndex}`}
+                      ref={isActiveParagraph ? activeParagraphRef : null}
+                      className={`readParagraphItem ${paragraphState}`}
+                    >
+                      <span className="readParagraphIndex">{paragraphIndex + 1}</span>
+                      <p className="readParagraphEnglish">{paragraphStage.answer}</p>
+                      <p className="readParagraphChinese">{paragraphStage.chinese}</p>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <>
+            <div className="practiceCenter">
+              {perfectStreak !== null && (
+                <div className="perfectStreak" key={perfectStreak}>
+                  perfect ✕ {perfectStreak}
+                </div>
+              )}
+              {status === "success" ? (
               <TokenBuilder
                 className="practiceResult"
                 selectedTokens={revealedTokens}
@@ -2036,24 +2222,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </div>
-
-          {isReadMode ? (
-            <div className="practiceShortcuts readPracticeShortcuts" aria-label="Read-aloud controls">
-              <button type="button" onClick={exitReadPractice}>
-                返回
-              </button>
-              <button type="button" onClick={playPronunciation}>
-                播放标准发音
-              </button>
-              <button type="button" onClick={advanceStage} disabled={status !== "success"}>
-                继续
-              </button>
-              <button type="button" onClick={skipReadStage}>
-                跳过
-              </button>
             </div>
-          ) : (
             <div className="practiceShortcuts" aria-label="Keyboard shortcuts">
               <button type="button" onClick={playPronunciation}>
                 <kbd>Ctrl</kbd><kbd>&apos;</kbd> 播放发音
@@ -2065,62 +2234,12 @@ export default function Home() {
                 <kbd>Ctrl</kbd><kbd>;</kbd> 显示答案
               </button>
             </div>
+            </>
           )}
 
-          {showResultModal ? (
+          {showResultModal && !isReadMode ? (
             <div className="resultOverlay" role="dialog" aria-modal="true" aria-label="练习结果">
-              <section className="resultModal">
-                <header className="resultHeader">
-                  <span>🎉</span>
-                  <strong>太强了！</strong>
-                </header>
-                <div className="resultScoreRow">
-                  <div>
-                    <strong className="resultGrade">{grade}</strong>
-                    <span className="resultScore">/{score.toLocaleString()}</span>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>{stats.perfect}</dt>
-                      <dd>完美</dd>
-                    </div>
-                    <div>
-                      <dt>{stats.good}</dt>
-                      <dd>很好</dd>
-                    </div>
-                    <div>
-                      <dt>{stats.skipped}</dt>
-                      <dd>跳过</dd>
-                    </div>
-                  </dl>
-                </div>
-                <div className="resultStatsGrid">
-                  <div>
-                    <span>练习时长</span>
-                    <strong>{duration}</strong>
-                  </div>
-                  <div>
-                    <span>答题数</span>
-                    <strong>{stats.answered}</strong>
-                  </div>
-                  <div>
-                    <span>最大连击 🔥</span>
-                    <strong>{stats.maxStreak}</strong>
-                  </div>
-                </div>
-                <div className="resultMessage">
-                  <strong>刷着刷着就记住了，这就是 gramtree 的学习方式</strong>
-                  <span>每次进入测试都会重新统计本轮数据</span>
-                </div>
-                <footer className="resultActions">
-                  <button type="button" className="secondaryResultButton" onClick={() => startPractice()}>
-                    再来一次
-                  </button>
-                  <button type="button" className="primaryResultButton" onClick={() => startPractice()}>
-                    免费体验
-                  </button>
-                </footer>
-              </section>
+              {resultSummary}
               <div className="snowLayer" aria-hidden="true">
                 {snowflakes.map((s, i) => (
                   <i key={i} style={{

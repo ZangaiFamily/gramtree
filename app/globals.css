@@ -30,7 +30,8 @@ body {
 }
 
 button,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -68,6 +69,8 @@ textarea {
 .practiceHome {
   align-items: stretch;
   padding: 0;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .homeInternalMenu {
@@ -498,6 +501,206 @@ textarea {
   background: #eff6ff;
 }
 
+.sentenceImportPanel {
+  width: min(100%, 680px);
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+}
+
+.sentenceImportHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sentenceImportHeader div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.sentenceImportHeader strong {
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 1000;
+}
+
+.sentenceImportHeader span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.sentenceImportHeaderActions,
+.sentenceImportActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sentenceTemplateTools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.sentenceTemplateField {
+  display: grid;
+  gap: 6px;
+}
+
+.sentenceTemplateField span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.sentenceTemplateField select {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 34px 8px 11px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 900;
+  outline: none;
+}
+
+.sentenceTemplateField select:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.sentenceImportPanel button {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 900;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.sentenceImportPanel button:hover,
+.sentenceImportPanel button:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+}
+
+.sentenceImportPanel button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 2px;
+}
+
+.sentenceImportPanel button:active {
+  transform: translateY(1px);
+}
+
+.sentenceImportPanel button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.sentenceImportPanel .primaryImportButton {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.sentenceImportTextarea,
+.importPromptTextarea {
+  min-height: 116px;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #111827;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  box-shadow: none;
+}
+
+.sentenceImportTextarea::placeholder {
+  color: #94a3b8;
+}
+
+.importPromptTextarea {
+  min-height: 146px;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.sentenceImportAlert {
+  position: relative;
+  display: grid;
+  gap: 9px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 12px;
+  padding-top: 48px;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.sentenceImportAlert strong {
+  color: #991b1b;
+  font-size: 0.92rem;
+  font-weight: 1000;
+}
+
+.sentenceImportAlert p {
+  margin: 0;
+  padding-right: 4px;
+  font-size: 0.84rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.sentenceImportPanel .copyImportPromptButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border-color: #fed7aa;
+  background: #ffffff;
+  color: #9a3412;
+}
+
+.sentenceImportAlert .importPromptTextarea {
+  min-height: 132px;
+  border-color: #fed7aa;
+  background: #ffffff;
+}
+
+.sentenceImportSummary,
+.sentenceImportError {
+  margin: 0;
+  color: #15803d;
+  font-size: 0.84rem;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+.sentenceImportError {
+  color: #dc2626;
+}
+
 .practiceShell {
   width: 100%;
   min-height: 100dvh;
@@ -560,6 +763,148 @@ textarea {
   justify-content: center;
   overflow: hidden;
   padding: 72px 20px 40px;
+}
+
+/* Read-aloud split view: current sentence on the left, scrollable paragraph on the right. */
+.readPracticeShell {
+  grid-template-rows: 88px minmax(0, 1fr);
+}
+
+.readSplit {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: clamp(12px, 2vw, 30px);
+  padding: 60px clamp(16px, 2.6vw, 44px) 24px;
+}
+
+.readSplitLeft {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2vh, 20px);
+  overflow: hidden;
+}
+
+.readSplitLeft .readPracticeShortcuts {
+  position: static;
+  margin-top: clamp(6px, 1.4vh, 16px);
+}
+
+.readSplitLeft .readPracticeToken .homeBuilderToken {
+  max-width: min(100%, 30rem);
+}
+
+.readSplitLeft .readPracticeToken .homeWordBlock {
+  inline-size: min(100%, 30rem);
+}
+
+.readSplitRight {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.4vh, 16px);
+  padding: 40vh 6px 40vh 0;
+  border-left: 1px solid #eef2f7;
+  scroll-behavior: smooth;
+}
+
+.readParagraphItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 12px clamp(12px, 1.6vw, 22px);
+  border-left: 3px solid transparent;
+  border-radius: 0 12px 12px 0;
+  transition:
+    opacity 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.readParagraphIndex {
+  grid-row: span 2;
+  min-width: 20px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.readParagraphEnglish {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.05rem, 1.6vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.readParagraphChinese {
+  margin: 4px 0 0;
+  color: #94a3b8;
+  font-size: clamp(0.76rem, 1.05vw, 0.96rem);
+  font-weight: 700;
+}
+
+.readParagraphItem.upcoming {
+  opacity: 0.38;
+}
+
+.readParagraphItem.active {
+  background: #f5f3ff;
+  border-left-color: #a855f7;
+}
+
+.readParagraphItem.active .readParagraphIndex {
+  color: #a855f7;
+}
+
+.readParagraphItem.done .readParagraphEnglish {
+  color: #15803d;
+}
+
+.readParagraphItem.done .readParagraphIndex {
+  color: #22c55e;
+}
+
+.readResultInline {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.readResultInline .resultModal {
+  width: min(100%, 30rem);
+  box-shadow: none;
+}
+
+@media (max-width: 860px) {
+  .readSplit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 56px 14px 16px;
+  }
+
+  .readSplitLeft {
+    justify-content: flex-start;
+  }
+
+  .readSplitRight {
+    border-left: none;
+    border-top: 1px solid #eef2f7;
+    padding: 26vh 0;
+  }
 }
 
 .perfectStreak {
@@ -638,14 +983,59 @@ textarea {
   gap: 9px;
 }
 
-.practiceWordInput span {
+.practiceStaticText {
   min-height: clamp(2.2rem, 4vw, 4.4rem);
-  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  color: #94a3b8;
+  font-size: clamp(2rem, 4vw, 4.4rem);
+  font-weight: 900;
+  line-height: 1;
+  white-space: pre;
+  user-select: none;
+}
+
+.practiceWordValue {
+  min-height: clamp(2.2rem, 4vw, 4.4rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: clamp(2rem, 4vw, 4.4rem);
   font-weight: 900;
   line-height: 1;
   text-align: center;
   white-space: pre;
+}
+
+.practiceTypedValue {
+  min-height: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111827;
+}
+
+.revealedWordValue {
+  font-style: italic;
+}
+
+.practiceAnswerChar {
+  color: #94a3b8;
+  opacity: 0.62;
+  user-select: none;
+}
+
+.typedMatchChar {
+  color: #111827;
+  opacity: 1;
+  font-style: normal;
+}
+
+.typedMismatchChar,
+.typedOverflowChars {
+  color: #ef4444;
+  opacity: 1;
+  font-style: normal;
 }
 
 .practiceWordInput i {
@@ -658,6 +1048,16 @@ textarea {
     transform 0.16s ease;
 }
 
+.answerPlaceholderSlot i {
+  background: repeating-linear-gradient(
+    90deg,
+    #cbd5e1 0,
+    #cbd5e1 10px,
+    transparent 10px,
+    transparent 16px
+  );
+}
+
 .activeWordInput i {
   background: #a855f7;
   transform: scaleX(1.04);
@@ -668,7 +1068,10 @@ textarea {
 }
 
 .inputError .practiceTypingHint,
-.inputError .practiceWordInput span {
+.inputError .practiceTypedValue,
+.inputError .typedMatchChar,
+.inputError .typedMismatchChar,
+.inputError .typedOverflowChars {
   color: #ef4444;
 }
 
@@ -710,6 +1113,23 @@ textarea {
 .readPracticeToken .contextToken {
   opacity: 0.58;
   transform: scale(0.92);
+}
+
+.readPracticeToken .recognizedToken {
+  opacity: 1;
+}
+
+.readPracticeToken .recognizedToken .homeWordBlock {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.readPracticeToken .recognizedToken .homeWordText {
+  color: #14532d;
+}
+
+.readPracticeToken .recognizedToken .grammarUnderline {
+  background: #22c55e;
 }
 
 .phraseReadToken .contextToken .homeWordBlock {
@@ -845,6 +1265,13 @@ textarea {
   color: #b91c1c;
 }
 
+.readProgressText {
+  margin: -2px 0 0;
+  color: #64748b;
+  font-size: clamp(0.86rem, 3vw, 1rem);
+  font-weight: 900;
+}
+
 .recognizedText,
 .recordingError {
   margin: 0;
@@ -887,13 +1314,15 @@ textarea {
 }
 
 .sentenceReadToken .homeWordStrip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(5.25rem, 1fr));
-  gap: 6px;
-  align-items: stretch;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .sentenceReadToken .homeBuilderToken {
+  flex: 0 1 auto;
   max-width: none;
 }
 
@@ -903,21 +1332,23 @@ textarea {
   display: none;
 }
 
-.sentenceReadToken .wordBubbleStack,
-.sentenceReadToken .homeWordBlock {
-  width: 100%;
+.sentenceReadToken .wordBubbleStack {
+  width: auto;
 }
 
 .sentenceReadToken .homeWordBlock {
+  width: max-content;
+  max-width: 84vw;
   min-width: 0;
   min-height: clamp(3rem, 8vh, 4.4rem);
   inline-size: auto;
+  container-type: normal;
   padding: 0.45rem 0.55rem;
   border-radius: 0.85rem;
 }
 
 .sentenceReadToken .homeWordText {
-  font-size: clamp(1.35rem, calc(48cqi / max(var(--word-length, 5), 5)), 2.45rem);
+  font-size: clamp(1.65rem, 4vw, 2.45rem);
 }
 
 .sentenceReadToken .grammarUnderline {
@@ -1507,9 +1938,9 @@ textarea:focus {
 }
 
 .wordBlock {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
   width: fit-content;
   max-width: 100%;
   min-width: 56px;
@@ -1518,9 +1949,9 @@ textarea:focus {
   padding: 18px 14px;
 }
 
-.wordText {
+.wordText,
+.wordTextMeasure {
   display: block;
-  color: #0f172a;
   font-size: 70px;
   font-weight: 900;
   letter-spacing: 0;
@@ -1529,6 +1960,22 @@ textarea:focus {
   overflow-wrap: anywhere;
   text-align: center;
   white-space: nowrap;
+}
+
+.wordText {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #0f172a;
+  padding: inherit;
+}
+
+.wordTextMeasure {
+  color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
 }
 
 .tokenFillPronoun {
@@ -2143,6 +2590,50 @@ textarea:focus {
 
   .homePracticeMode span {
     font-size: 0.84rem;
+  }
+
+  .sentenceImportPanel {
+    gap: 10px;
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  .sentenceImportHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sentenceImportHeaderActions,
+  .sentenceImportActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .sentenceTemplateTools {
+    grid-template-columns: 1fr;
+  }
+
+  .sentenceImportPanel button {
+    width: 100%;
+    padding-inline: 8px;
+  }
+
+  .sentenceImportTextarea,
+  .importPromptTextarea {
+    min-height: 104px;
+    padding: 12px;
+    font-size: 0.78rem;
+  }
+
+  .sentenceImportAlert {
+    padding: 10px;
+  }
+
+  .sentenceImportPanel .copyImportPromptButton {
+    position: static;
+    justify-self: end;
+    width: auto;
   }
 
   .practiceHome {
