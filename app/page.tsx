@@ -28,6 +28,7 @@ type Token = {
 type Stage = {
   answer: string;
   chinese: string;
+  tokens: Token[];
   tokenIndexes: number[];
   readAnswer?: string;
   readTokenIndexes?: number[];
@@ -699,14 +700,20 @@ function createReadTokenIndexes(tokens: Token[], index: number) {
   );
 }
 
-function createStages(tokens: Token[], sentence: ClassicSentence): Stage[] {
-  return [
-    {
-      answer: sentence.text,
-      chinese: sentence.chinese,
-      tokenIndexes: tokens.map((_, index) => index),
-    },
-  ];
+function createSentenceStage(sentence: ClassicSentence): Stage {
+  const tokens = createTokens(sentence.text);
+  return {
+    answer: sentence.text,
+    chinese: sentence.chinese,
+    tokens,
+    tokenIndexes: tokens.map((_, index) => index),
+  };
+}
+
+// Read-aloud mode chains every sentence in the active library into one
+// continuous paragraph: one stage per sentence, advancing until the last.
+function createReadStages(sentences: ClassicSentence[]): Stage[] {
+  return sentences.map(createSentenceStage);
 }
 
 function normalizeInput(value: string) {
@@ -946,15 +953,17 @@ export default function Home() {
   const readButtonPointerToggleAtRef = useRef(0);
   const importPromptRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const tokens = useMemo(() => createTokens(selectedSentence.text), [selectedSentence.text]);
-  const stages = useMemo(() => createStages(tokens, selectedSentence), [selectedSentence, tokens]);
-  const stage = stages[stageIndex];
+  const isReadMode = practiceMode === "read";
+  const dictationStages = useMemo(() => [createSentenceStage(selectedSentence)], [selectedSentence]);
+  const readStages = useMemo(() => createReadStages(activeSentenceLibrary), [activeSentenceLibrary]);
+  const stages = isReadMode ? readStages : dictationStages;
+  const stage = stages[Math.min(stageIndex, stages.length - 1)] ?? stages[0];
+  const tokens = stage.tokens;
   const dictationSegments = useMemo(() => createDictationSegments(stage.answer), [stage.answer]);
   const dictationWords = useMemo(
     () => dictationSegments.filter((segment): segment is Extract<DictationSegment, { kind: "word" }> => segment.kind === "word"),
     [dictationSegments],
   );
-  const isReadMode = practiceMode === "read";
   const readProvider = useMemo(() => getReadPracticeProvider(readProviderCode), [readProviderCode]);
   const readProviderRef = useRef<ReadPracticeProvider>(readProvider);
   const readAnswer = stage.readAnswer ?? stage.answer;
@@ -1016,20 +1025,20 @@ export default function Home() {
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
-    setStats(createPracticeStats(stages.length));
+    setStats(createPracticeStats(dictationStages.length));
     setShowResultModal(false);
     setPerfectStreak(null);
     setRecognizedText("");
     setReadResult(null);
-    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
+    setRecognizedReadIndexes(Array.from({ length: dictationStages.length }, () => []));
     setRecordingError("");
     setRecordingUrls((current) => {
       current.forEach((url) => {
         if (url) URL.revokeObjectURL(url);
       });
-      return Array.from({ length: stages.length }, () => null);
+      return Array.from({ length: dictationStages.length }, () => null);
     });
-  }, [stages.length, selectedSentence.chinese, selectedSentence.text]);
+  }, [dictationStages.length, selectedSentence.chinese, selectedSentence.text]);
 
   useEffect(() => {
     finishReadRecording({ abortRecognition: true, evaluate: false });
@@ -1075,18 +1084,25 @@ export default function Home() {
   function startPractice(mode: PracticeMode = practiceMode) {
     if (_audioCtx?.state === "suspended") _audioCtx.resume();
     cancelSpeech();
+    const runStages = mode === "read" ? readStages : dictationStages;
     setPracticeMode(mode);
-    setStats(createPracticeStats(stages.length));
+    setStats(createPracticeStats(runStages.length));
     setShowResultModal(false);
     setIsPractice(true);
     setStageIndex(0);
-    setWordInputs(Array.from({ length: countDictationInputs(stages[0].answer) }, () => ""));
+    setWordInputs(Array.from({ length: countDictationInputs(runStages[0].answer) }, () => ""));
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
     setRecognizedText("");
     setReadResult(null);
-    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
+    setRecognizedReadIndexes(Array.from({ length: runStages.length }, () => []));
+    setRecordingUrls((current) => {
+      current.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+      return Array.from({ length: runStages.length }, () => null);
+    });
   }
 
   function pickRandomSentence(library = activeSentenceLibrary) {
@@ -1379,7 +1395,7 @@ export default function Home() {
     }
   }
 
-  function applyReadResult(transcript: string) {
+  function applyReadResult(transcript: string): ReadResult {
     setRecognizedText(transcript);
 
     const currentRecognizedIndexes = recognizedReadIndexes[stageIndex] ?? [];
@@ -1426,7 +1442,7 @@ export default function Home() {
         });
       }
       setStatus("success");
-      return;
+      return result;
     }
 
     if (result === "try-again") {
@@ -1437,7 +1453,7 @@ export default function Home() {
         ),
       }));
       setStatus("typing");
-      return;
+      return result;
     }
 
     setStats((current) => ({
@@ -1449,6 +1465,7 @@ export default function Home() {
       ),
     }));
     setStatus("error");
+    return result;
   }
 
   async function startReadRecording() {
@@ -1515,27 +1532,61 @@ export default function Home() {
       isRecordingRef.current = true;
       setIsRecording(true);
 
-      const recognition = provider.createSession?.({
-        language: "en",
-        onTranscript: (transcript) => {
-          if (recordingSessionIdRef.current !== sessionId) return;
-          speechTranscriptRef.current = transcript;
-          setRecognizedText(transcript);
-        },
-        onError: (message) => {
-          if (recordingSessionIdRef.current !== sessionId) return;
-          setRecordingError(message);
-        },
-        onEnd: (transcript) => {
-          if (recordingSessionIdRef.current !== sessionId) return;
-          const nextTranscript = transcript.trim();
-          speechResultAppliedRef.current = true;
-          applyReadResult(nextTranscript);
-          speechRecognitionRef.current = null;
-        },
-      });
+      const scheduleRecognitionRestart = () => {
+        window.setTimeout(() => {
+          if (
+            recordingSessionIdRef.current === sessionId &&
+            isRecordingRef.current &&
+            !speechRecognitionRef.current
+          ) {
+            startRecognition();
+          }
+        }, 120);
+      };
 
-      if (recognition) {
+      const startRecognition = () => {
+        const recognition = provider.createSession?.({
+          language: "en",
+          onTranscript: (transcript) => {
+            if (recordingSessionIdRef.current !== sessionId) return;
+            speechTranscriptRef.current = transcript;
+            setRecognizedText(transcript);
+          },
+          onError: (message, error) => {
+            if (recordingSessionIdRef.current !== sessionId) return;
+            // Silence/abort between re-reads is expected while we keep the mic open.
+            if (error === "no-speech" || error === "aborted") return;
+            setRecordingError(message);
+          },
+          onEnd: (transcript) => {
+            if (recordingSessionIdRef.current !== sessionId) return;
+            speechRecognitionRef.current = null;
+            const nextTranscript = transcript.trim();
+            const stillRecording = isRecordingRef.current;
+
+            // Auto-ended after a pause without catching speech: keep listening
+            // instead of forcing the user to toggle the mic off and on.
+            if (stillRecording && !nextTranscript) {
+              scheduleRecognitionRestart();
+              return;
+            }
+
+            speechResultAppliedRef.current = true;
+            const result = applyReadResult(nextTranscript);
+
+            // Words still missing: keep listening so re-reading matches the
+            // remaining words in order, no manual stop/restart needed.
+            if (result !== "recognized" && stillRecording) {
+              scheduleRecognitionRestart();
+            }
+          },
+        });
+
+        if (!recognition) {
+          setRecordingError("录音已开始，但当前浏览器不支持语音识别。");
+          return;
+        }
+
         speechRecognitionRef.current = recognition;
         try {
           recognition.start();
@@ -1543,9 +1594,9 @@ export default function Home() {
           speechRecognitionRef.current = null;
           setRecordingError("录音已开始，但当前浏览器无法启动语音识别。");
         }
-      } else {
-        setRecordingError("录音已开始，但当前浏览器不支持语音识别。");
-      }
+      };
+
+      startRecognition();
     } catch (error) {
       isRecordingRef.current = false;
       setIsRecording(false);
@@ -1579,12 +1630,12 @@ export default function Home() {
     setActiveInputIndex(0);
     setStatus("typing");
     setScore(0);
-    setStats(createPracticeStats(stages.length));
+    setStats(createPracticeStats(dictationStages.length));
     setShowResultModal(false);
     setPerfectStreak(null);
     setRecognizedText("");
     setReadResult(null);
-    setRecognizedReadIndexes(Array.from({ length: stages.length }, () => []));
+    setRecognizedReadIndexes(Array.from({ length: dictationStages.length }, () => []));
     setRecordingError("");
   }
 
