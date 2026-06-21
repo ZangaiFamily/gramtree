@@ -645,12 +645,12 @@ function parseSentenceImport(rawInput: string): SentenceImportResult {
 }
 
 function sentenceWords(sentence: string) {
-  return sentence.match(/[A-Za-z']+/g) ?? [];
+  return sentence.match(/[A-Za-z']+|\d+(?:[,.]\d+)*%?/g) ?? [];
 }
 
 function createDictationSegments(sentence: string): DictationSegment[] {
   const segments: DictationSegment[] = [];
-  const matches = Array.from(sentence.matchAll(/[A-Za-z']+/g));
+  const matches = Array.from(sentence.matchAll(/[A-Za-z']+|\d+(?:[,.]\d+)*%?/g));
   let cursor = 0;
   let inputIndex = 0;
 
@@ -678,6 +678,15 @@ function countDictationInputs(sentence: string) {
 
 function inferTokenMeta(word: string): Omit<Token, "word"> {
   const lower = word.toLowerCase();
+  if (/^\d/.test(lower)) {
+    return {
+      phonetic: `/${lower}/`,
+      partOfSpeech: "数词",
+      chinese: "数字",
+      fillTone: "tokenFillDefault",
+      underlineTone: "tokenUnderlineDeterminer",
+    };
+  }
   const pronouns = new Set(["i", "you", "your", "this"]);
   const determiners = new Set(["a", "the", "all", "every", "each", "no"]);
   const conjunctions = new Set(["and", "than"]);

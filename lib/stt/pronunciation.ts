@@ -2,7 +2,9 @@ export function normalizeSttText(value: string) {
   return value
     .toLowerCase()
     .replace(/[\u2018\u2019\u02bc`]/g, "'")
-    .replace(/[^a-z'\s]/g, " ")
+    .replace(/(\d),(?=\d)/g, "$1")
+    .replace(/%/g, " ")
+    .replace(/[^a-z0-9'\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -126,6 +128,55 @@ const cmuPronunciations: Record<string, string[]> = {
   "you're": ["Y AO R", "Y UH R"],
 };
 
+const numberTermAliases: Record<string, string[]> = {
+  "0": ["zero", "oh"],
+  "1": ["one"],
+  "2": ["two", "to", "too"],
+  "3": ["three"],
+  "4": ["four", "for"],
+  "5": ["five"],
+  "6": ["six"],
+  "7": ["seven"],
+  "8": ["eight", "ate"],
+  "9": ["nine"],
+  "10": ["ten"],
+  "11": ["eleven"],
+  "12": ["twelve"],
+  "13": ["thirteen"],
+  "14": ["fourteen"],
+  "15": ["fifteen"],
+  "16": ["sixteen"],
+  "17": ["seventeen"],
+  "18": ["eighteen"],
+  "19": ["nineteen"],
+  "20": ["twenty"],
+  "30": ["thirty"],
+  "40": ["forty"],
+  "50": ["fifty"],
+  "60": ["sixty"],
+  "70": ["seventy"],
+  "80": ["eighty"],
+  "90": ["ninety"],
+  "100": ["hundred"],
+};
+
+const numberTermCanonical = Object.entries(numberTermAliases).reduce<Record<string, string>>(
+  (next, [number, aliases]) => {
+    next[number] = number;
+    aliases.forEach((alias) => {
+      next[alias] = number;
+    });
+    return next;
+  },
+  {},
+);
+
+function areEquivalentNumberTerms(left: string, right: string) {
+  const leftNumber = numberTermCanonical[left];
+  const rightNumber = numberTermCanonical[right];
+  return Boolean(leftNumber && rightNumber && leftNumber === rightNumber);
+}
+
 function normalizeCmuPhones(value: string) {
   return value.replace(/[0-2]/g, "").replace(/\s+/g, " ").trim();
 }
@@ -152,6 +203,7 @@ export function getPronunciationKeys(word: string) {
 
 export function samePronunciation(left: string, right: string) {
   if (left === right) return true;
+  if (areEquivalentNumberTerms(left, right)) return true;
 
   const leftKeys = getPronunciationKeys(left);
   const rightKeys = getPronunciationKeys(right);
